@@ -99,7 +99,7 @@ export class WorkflowExecutor {
 
   async executeNodeByType(node, inputs) {
     const nodeType = node.data.nodeType || node.type || 'default'
-    const data = node.data
+    const data = { ...node.data, ...(node.data.config || {}) }
 
     if (nodeType.includes('data')) return this.executeDataNode(data)
     if (nodeType === 'logic-if') return this.executeLogicIfNode(data, inputs)

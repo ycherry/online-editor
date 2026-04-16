@@ -67,7 +67,7 @@ import { ref, watch } from 'vue'
 const props = defineProps({ modelValue: Object })
 const emit = defineEmits(['update:modelValue'])
 const localData = ref({ ...props.modelValue })
-if (!localData.value.method) localData.value.method = 'max'
+if (!localData.value.method) localData.value.method = localData.value.nodeType === 'processing-average' ? 'arithmetic' : localData.value.nodeType === 'processing-interpolation' ? 'regression' : 'max'
 watch(() => props.modelValue, (v) => { localData.value = { ...v } }, { deep: true })
 function emitUpdate() { emit('update:modelValue', localData.value) }
 function getInterpolationDesc() {

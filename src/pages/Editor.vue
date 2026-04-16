@@ -174,9 +174,9 @@ const nodeCategories = ref([
     { type: "query-condition", label: "条件查询", icon: "?", color: "#14b8a6", defaultConfig: { queryType: "condition", field: "", value: "", matchMode: "exact" } }
   ]},
   { name: "数据处理", icon: "📈", open: false, nodes: [
-    { type: "processing-extreme", label: "最值", icon: "↕", color: "#6366f1", defaultConfig: { method: "extreme", extremeType: "max" } },
-    { type: "processing-average", label: "平均值", icon: "Ā", color: "#6366f1", defaultConfig: { method: "average", weightField: "" } },
-    { type: "processing-interpolation", label: "缺失处理", icon: "~", color: "#6366f1", defaultConfig: { method: "interpolation", strategy: "mean" } },
+    { type: "processing-extreme", label: "最值", icon: "↕", color: "#6366f1", defaultConfig: { nodeType: "processing-extreme", method: "max" } },
+    { type: "processing-average", label: "平均值", icon: "Ā", color: "#6366f1", defaultConfig: { nodeType: "processing-average", method: "arithmetic" } },
+    { type: "processing-interpolation", label: "缺失处理", icon: "~", color: "#6366f1", defaultConfig: { nodeType: "processing-interpolation", method: "regression" } },
     { type: "processing-price", label: "价格调整", icon: "¥", color: "#6366f1", defaultConfig: { method: "price", adjustType: "index", indexValue: 1 } }
   ]},
   { name: "多版本比较", icon: "🆚", open: false, nodes: [
