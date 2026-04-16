@@ -3,18 +3,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: () => import('@/pages/Home.vue'),
-    meta: { title: '首页' }
-  },
-  {
-    path: '/about',
-    name: 'About',
-    component: () => import('@/pages/About.vue'),
-    meta: { title: '关于' }
-  },
-  {
-    path: '/editor',
     name: 'Editor',
     component: () => import('@/pages/Editor.vue'),
     meta: { title: '编辑器' }
