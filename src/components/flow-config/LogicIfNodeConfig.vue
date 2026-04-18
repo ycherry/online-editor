@@ -1,28 +1,28 @@
 <template>
   <div class="config-form">
+
+    <!-- 条件分支 -->
     <div class="form-group">
       <label class="form-label">条件分支</label>
-      <div class="help-text">每个分支为独立 IF / ELSE IF，分支内可组合多个条件规则</div>
       <div class="branches-list">
+
+        <!-- IF / ELSE IF 分支 -->
         <div v-for="(branch, bIdx) in localData.conditions" :key="bIdx" class="branch-item">
           <div class="branch-header">
             <span class="branch-label">{{ bIdx === 0 ? 'IF' : `ELSE IF ${bIdx}` }}</span>
-            <button
-              class="btn-remove-small"
-              :disabled="localData.conditions.length <= 1"
-              title="删除此分支"
-              @click="removeBranch(bIdx)"
-            >×</button>
+            <button class="btn-remove-small" :disabled="localData.conditions.length <= 1" title="删除此分支" @click="removeBranch(bIdx)">×</button>
           </div>
+
+          <!-- 主条件（API 1 字段） -->
+          <div class="sub-section-title">条件</div>
           <div class="rules-list">
             <template v-for="(rule, rIdx) in branch.rules" :key="rIdx">
               <div class="rule-row">
-                <input
-                  v-model="rule.field"
-                  class="rule-input field-input"
-                  placeholder="字段名"
-                  @input="emitUpdate"
-                />
+                <select v-if="mainFields.length" v-model="rule.field" class="rule-select field-select" @change="emitUpdate">
+                  <option value="">-- 字段 --</option>
+                  <option v-for="f in mainFields" :key="f" :value="f">{{ f }}</option>
+                </select>
+                <input v-else v-model="rule.field" class="rule-input field-input" placeholder="字段名" @input="emitUpdate" />
                 <select v-model="rule.fieldType" class="rule-select type-select" @change="onTypeChange(rule)">
                   <option value="string">文本</option>
                   <option value="number">数字</option>
@@ -36,19 +36,8 @@
                   <option value="true">true</option>
                   <option value="false">false</option>
                 </select>
-                <input
-                  v-else
-                  v-model="rule.value"
-                  class="rule-input value-input"
-                  placeholder="值"
-                  @input="emitUpdate"
-                />
-                <button
-                  class="btn-remove-rule"
-                  :disabled="branch.rules.length <= 1"
-                  title="删除此规则"
-                  @click="removeRule(bIdx, rIdx)"
-                >×</button>
+                <input v-else v-model="rule.value" class="rule-input value-input" placeholder="值" @input="emitUpdate" />
+                <button class="btn-remove-rule" :disabled="branch.rules.length <= 1" @click="removeRule(bIdx, rIdx)">×</button>
               </div>
               <div v-if="rIdx < branch.rules.length - 1" class="logic-connector-row">
                 <select v-model="rule.logic" class="logic-select" @change="emitUpdate">
@@ -59,18 +48,147 @@
             </template>
             <button class="btn-add-rule" @click="addRule(bIdx)">+ 条件</button>
           </div>
+
+          <!-- 子条件（API 2 字段） -->
+          <div class="sub-section-title sub-cond-title">子条件</div>
+          <div class="rules-list sub-rules-list">
+            <template v-for="(rule, rIdx) in (branch.subRules || [])" :key="rIdx">
+              <div class="rule-row">
+                <select v-if="subFields.length" v-model="rule.field" class="rule-select field-select sub-field-select" @change="emitUpdate">
+                  <option value="">-- 字段 --</option>
+                  <option v-for="f in subFields" :key="f" :value="f">{{ f }}</option>
+                </select>
+                <input v-else v-model="rule.field" class="rule-input field-input" placeholder="字段名" @input="emitUpdate" />
+                <select v-model="rule.fieldType" class="rule-select type-select" @change="onTypeChange(rule)">
+                  <option value="string">文本</option>
+                  <option value="number">数字</option>
+                  <option value="boolean">布尔</option>
+                  <option value="date">日期</option>
+                </select>
+                <select v-model="rule.operator" class="rule-select op-select" @change="emitUpdate">
+                  <option v-for="op in getOperators(rule.fieldType)" :key="op.value" :value="op.value">{{ op.label }}</option>
+                </select>
+                <select v-if="rule.fieldType === 'boolean'" v-model="rule.value" class="rule-select value-select" @change="emitUpdate">
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+                <input v-else v-model="rule.value" class="rule-input value-input" placeholder="值" @input="emitUpdate" />
+                <button class="btn-remove-rule" @click="removeSubRule(bIdx, rIdx)">×</button>
+              </div>
+              <div v-if="rIdx < (branch.subRules || []).length - 1" class="logic-connector-row">
+                <select v-model="rule.logic" class="logic-select sub-logic-select" @change="emitUpdate">
+                  <option value="&&">AND（且）</option>
+                  <option value="||">OR（或）</option>
+                </select>
+              </div>
+            </template>
+            <button class="btn-add-rule sub-add-rule" @click="addSubRule(bIdx)">+ 子条件</button>
+          </div>
         </div>
+
         <button class="btn-add" @click="addBranch">+ 添加 ELSE IF 分支</button>
+
+        <!-- ELSE 分支 -->
+        <div v-if="!localData.hasElse" class="btn-add" @click="enableElse">+ 添加 ELSE 分支</div>
+        <div v-else class="branch-item else-branch">
+          <div class="branch-header">
+            <span class="branch-label else-label">ELSE</span>
+            <button class="btn-remove-small" title="移除 ELSE 分支" @click="disableElse">×</button>
+          </div>
+
+          <!-- ELSE 主条件 -->
+          <div class="sub-section-title">条件</div>
+          <div class="rules-list">
+            <template v-for="(rule, rIdx) in (localData.elseBranch?.rules || [])" :key="rIdx">
+              <div class="rule-row">
+                <select v-if="mainFields.length" v-model="rule.field" class="rule-select field-select" @change="emitUpdate">
+                  <option value="">-- 字段 --</option>
+                  <option v-for="f in mainFields" :key="f" :value="f">{{ f }}</option>
+                </select>
+                <input v-else v-model="rule.field" class="rule-input field-input" placeholder="字段名" @input="emitUpdate" />
+                <select v-model="rule.fieldType" class="rule-select type-select" @change="onTypeChange(rule)">
+                  <option value="string">文本</option>
+                  <option value="number">数字</option>
+                  <option value="boolean">布尔</option>
+                  <option value="date">日期</option>
+                </select>
+                <select v-model="rule.operator" class="rule-select op-select" @change="emitUpdate">
+                  <option v-for="op in getOperators(rule.fieldType)" :key="op.value" :value="op.value">{{ op.label }}</option>
+                </select>
+                <select v-if="rule.fieldType === 'boolean'" v-model="rule.value" class="rule-select value-select" @change="emitUpdate">
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+                <input v-else v-model="rule.value" class="rule-input value-input" placeholder="值" @input="emitUpdate" />
+                <button class="btn-remove-rule" :disabled="(localData.elseBranch?.rules || []).length <= 1" @click="removeElseRule(rIdx)">×</button>
+              </div>
+              <div v-if="rIdx < (localData.elseBranch?.rules || []).length - 1" class="logic-connector-row">
+                <select v-model="rule.logic" class="logic-select" @change="emitUpdate">
+                  <option value="&&">AND（且）</option>
+                  <option value="||">OR（或）</option>
+                </select>
+              </div>
+            </template>
+            <button class="btn-add-rule else-add-rule" @click="addElseRule">+ 条件</button>
+          </div>
+
+          <!-- ELSE 子条件 -->
+          <div class="sub-section-title sub-cond-title">子条件</div>
+          <div class="rules-list sub-rules-list">
+            <template v-for="(rule, rIdx) in (localData.elseBranch?.subRules || [])" :key="rIdx">
+              <div class="rule-row">
+                <select v-if="subFields.length" v-model="rule.field" class="rule-select field-select sub-field-select" @change="emitUpdate">
+                  <option value="">-- 字段 --</option>
+                  <option v-for="f in subFields" :key="f" :value="f">{{ f }}</option>
+                </select>
+                <input v-else v-model="rule.field" class="rule-input field-input" placeholder="字段名" @input="emitUpdate" />
+                <select v-model="rule.fieldType" class="rule-select type-select" @change="onTypeChange(rule)">
+                  <option value="string">文本</option>
+                  <option value="number">数字</option>
+                  <option value="boolean">布尔</option>
+                  <option value="date">日期</option>
+                </select>
+                <select v-model="rule.operator" class="rule-select op-select" @change="emitUpdate">
+                  <option v-for="op in getOperators(rule.fieldType)" :key="op.value" :value="op.value">{{ op.label }}</option>
+                </select>
+                <select v-if="rule.fieldType === 'boolean'" v-model="rule.value" class="rule-select value-select" @change="emitUpdate">
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+                <input v-else v-model="rule.value" class="rule-input value-input" placeholder="值" @input="emitUpdate" />
+                <button class="btn-remove-rule" @click="removeElseSubRule(rIdx)">×</button>
+              </div>
+              <div v-if="rIdx < (localData.elseBranch?.subRules || []).length - 1" class="logic-connector-row">
+                <select v-model="rule.logic" class="logic-select sub-logic-select" @change="emitUpdate">
+                  <option value="&&">AND（且）</option>
+                  <option value="||">OR（或）</option>
+                </select>
+              </div>
+            </template>
+            <button class="btn-add-rule sub-add-rule else-sub-add-rule" @click="addElseSubRule">+ 子条件</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import { getMaterialListFields, getHistoryPriceFields } from '@/services/priceAnalysisService'
 
 const props = defineProps({ modelValue: Object })
 const emit = defineEmits(['update:modelValue'])
+
+// ── 字段状态 ────────────────────────────────────────────────────
+const mainFields = ref([])
+const subFields = ref([])
+
+onMounted(async () => {
+  try { mainFields.value = await getMaterialListFields() } catch (e) { console.error('加载材料清单字段失败', e) }
+  try { subFields.value = await getHistoryPriceFields() } catch (e) { console.error('加载历史价格字段失败', e) }
+})
 
 const OPERATORS = {
   number:  [
@@ -108,13 +226,13 @@ function createRule() {
   return { field: '', fieldType: 'string', operator: '=', value: '', logic: '&&' }
 }
 function createBranch() {
-  return { rules: [createRule()] }
+  return { rules: [createRule()], subRules: [] }
 }
 
 function normalizeBranch(c) {
-  if (c && Array.isArray(c.rules)) return c
-  // legacy format: { condition: string, output: '' }
-  return { rules: [{ field: '', fieldType: 'string', operator: '=', value: c?.condition || '', logic: '&&' }] }
+  if (c && Array.isArray(c.rules)) return { ...c, subRules: c.subRules || [] }
+  // legacy format: { condition: string }
+  return { rules: [{ field: '', fieldType: 'string', operator: '=', value: c?.condition || '', logic: '&&' }], subRules: [] }
 }
 
 function initConditions(raw) {
@@ -144,9 +262,48 @@ function removeRule(bIdx, rIdx) {
   const rules = localData.value.conditions[bIdx].rules
   if (rules.length > 1) { rules.splice(rIdx, 1); emitUpdate() }
 }
+function addSubRule(bIdx) {
+  if (!localData.value.conditions[bIdx].subRules) localData.value.conditions[bIdx].subRules = []
+  localData.value.conditions[bIdx].subRules.push(createRule())
+  emitUpdate()
+}
+function removeSubRule(bIdx, rIdx) {
+  const rules = localData.value.conditions[bIdx].subRules
+  if (rules) { rules.splice(rIdx, 1); emitUpdate() }
+}
 function addBranch() { localData.value.conditions.push(createBranch()); emitUpdate() }
 function removeBranch(bIdx) {
   if (localData.value.conditions.length > 1) { localData.value.conditions.splice(bIdx, 1); emitUpdate() }
+}
+function enableElse() {
+  localData.value.hasElse = true
+  if (!localData.value.elseBranch) localData.value.elseBranch = { rules: [], subRules: [] }
+  else if (!localData.value.elseBranch.subRules) localData.value.elseBranch.subRules = []
+  emitUpdate()
+}
+function disableElse() {
+  localData.value.hasElse = false
+  localData.value.elseBranch = null
+  emitUpdate()
+}
+function addElseRule() {
+  if (!localData.value.elseBranch) localData.value.elseBranch = { rules: [], subRules: [] }
+  localData.value.elseBranch.rules.push(createRule())
+  emitUpdate()
+}
+function removeElseRule(rIdx) {
+  const rules = localData.value.elseBranch?.rules
+  if (rules && rules.length > 1) { rules.splice(rIdx, 1); emitUpdate() }
+}
+function addElseSubRule() {
+  if (!localData.value.elseBranch) localData.value.elseBranch = { rules: [], subRules: [] }
+  if (!localData.value.elseBranch.subRules) localData.value.elseBranch.subRules = []
+  localData.value.elseBranch.subRules.push(createRule())
+  emitUpdate()
+}
+function removeElseSubRule(rIdx) {
+  const rules = localData.value.elseBranch?.subRules
+  if (rules) { rules.splice(rIdx, 1); emitUpdate() }
 }
 </script>
 
@@ -223,4 +380,40 @@ function removeBranch(bIdx) {
   border-radius: 6px; color: #6b7280; cursor: pointer; font-size: 13px; text-align: center;
 }
 .btn-add:hover { border-color: #10b981; color: #10b981; background: #f0fdf4; }
+
+.else-branch { border-color: #fbbf24; background: #fffbeb; }
+.else-label { color: #d97706; background: #fef3c7; }
+.else-add-rule { border-color: #fde68a; color: #d97706; }
+.else-add-rule:hover { background: #fef3c7; }
+
+/* API config */
+.api-config-group { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 10px; gap: 8px; }
+.api-row { display: flex; align-items: center; gap: 6px; }
+.api-label { font-size: 11px; color: #0369a1; font-weight: 600; white-space: nowrap; min-width: 64px; }
+.api-input { flex: 1; padding: 5px 8px; border: 1px solid #bae6fd; border-radius: 5px; font-size: 12px; background: white; }
+.api-input:focus { outline: none; border-color: #38bdf8; }
+.btn-fetch {
+  padding: 5px 10px; background: #0ea5e9; color: white; border: none;
+  border-radius: 5px; cursor: pointer; font-size: 12px; white-space: nowrap; flex-shrink: 0;
+}
+.btn-fetch:hover:not(:disabled) { background: #0284c7; }
+.btn-fetch:disabled { background: #bae6fd; cursor: not-allowed; }
+.btn-fetch.loading { background: #7dd3fc; }
+.api-error { font-size: 11px; color: #dc2626; padding: 2px 4px; }
+.api-ok { font-size: 11px; color: #16a34a; padding: 2px 4px; }
+
+/* Sub-condition section */
+.sub-section-title {
+  font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase;
+  letter-spacing: 0.05em; padding: 4px 0 2px; border-top: 1px solid #e5e7eb; margin-top: 4px;
+}
+.sub-cond-title { color: #7c3aed; border-top-color: #ede9fe; }
+.sub-rules-list { background: #faf5ff; border-radius: 6px; padding: 6px; border: 1px solid #ede9fe; }
+.sub-add-rule { border-color: #c4b5fd; color: #7c3aed; }
+.sub-add-rule:hover { background: #f5f3ff; }
+.else-sub-add-rule { border-color: #fde68a; color: #d97706; }
+.else-sub-add-rule:hover { background: #fef3c7; }
+.sub-field-select { border-color: #c4b5fd; }
+.sub-logic-select { color: #7c3aed; background: #f5f3ff; border-color: #c4b5fd; }
+.field-select { flex: 1; min-width: 80px; }
 </style>

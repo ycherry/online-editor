@@ -13,6 +13,12 @@
         <div v-for="(branch, idx) in (data.config?.conditions || [])" :key="idx" class="condition-item">
           <span class="condition-label">{{ idx === 0 ? 'IF' : `ELSE IF ${idx}` }}</span>
           <span class="condition-value">{{ summarizeBranch(branch) }}</span>
+          <span v-if="branch.subRules?.some(r => r.field)" class="sub-condition-value">↳ {{ summarizeBranch({ rules: branch.subRules }) }}</span>
+        </div>
+        <div v-if="data.config?.hasElse" class="condition-item else-item">
+          <span class="condition-label else-label">ELSE</span>
+          <span class="condition-value">{{ data.config.elseBranch?.rules?.some(r => r.field) ? summarizeBranch(data.config.elseBranch) : '兜底分支' }}</span>
+          <span v-if="data.config.elseBranch?.subRules?.some(r => r.field)" class="sub-condition-value">↳ {{ summarizeBranch({ rules: data.config.elseBranch.subRules }) }}</span>
         </div>
         <div v-if="!data.config?.conditions?.length" class="empty-hint">点击配置条件</div>
       </div>
@@ -74,4 +80,7 @@ function summarizeBranch(branch) {
 .condition-value { color: #333; }
 .params-count { font-size: 12px; color: #666; }
 .empty-hint { font-size: 11px; color: #999; font-style: italic; }
+.else-item { background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; }
+.else-label { color: #d97706; }
+.sub-condition-value { font-size: 10px; color: #7c3aed; margin-top: 1px; }
 </style>

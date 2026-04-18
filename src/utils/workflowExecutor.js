@@ -1,4 +1,5 @@
 import { useExecutionStore } from '@/store/execution'
+import { queryPriceApi } from '@/services/priceAnalysisService'
 
 export class WorkflowExecutor {
   constructor(nodes, edges) {
@@ -109,6 +110,8 @@ export class WorkflowExecutor {
     if (nodeType.includes('condition-belongs')) return this.executeConditionBelongsNode(data, inputs)
     if (nodeType.includes('condition-compare')) return this.executeConditionCompareNode(data, inputs)
     if (nodeType.includes('calculation')) return this.executeCalculationNode(data, inputs)
+    if (nodeType.includes('query-api')) return this.executeQueryApiNode(data, inputs)
+    if (nodeType.includes('query-field')) return this.executeQueryFieldNode(data, inputs)
     if (nodeType.includes('query-filter')) return this.executeQueryFilterNode(data, inputs)
     if (nodeType.includes('query-condition')) return this.executeQueryConditionNode(data, inputs)
     if (nodeType.includes('processing-extreme')) return this.executeProcessingExtremeNode(data, inputs)
@@ -119,6 +122,7 @@ export class WorkflowExecutor {
     if (nodeType.includes('container-dict')) return this.executeContainerDictNode(data)
     if (nodeType.includes('execution-for')) return this.executeForNode(data, inputs)
     if (nodeType.includes('comparison')) return this.executeComparisonNode(data, inputs)
+    if (nodeType.includes('output')) return this.executeOutputNode(data, inputs)
     return inputs[0]
   }
 
@@ -138,26 +142,71 @@ export class WorkflowExecutor {
     }
     const headers = inputData[0]
     const rows = inputData.slice(1)
-    const condition = conditions[0].condition
-    const match = condition.match(/^\s*(.+?)\s*(=|==|!=|>|<|>=|<=|contains)\s*["']?(.+?)["']?\s*$/)
-    if (!match) throw new Error(`条件格式错误: ${condition}`)
-    const [, fieldName, operator, targetValue] = match
-    const fieldIndex = headers.findIndex(h => h === fieldName.trim())
-    if (fieldIndex === -1) throw new Error(`找不到字段: ${fieldName}`)
-    const filteredRows = rows.filter(row => {
-      const cellValue = String(row[fieldIndex] || '').trim()
-      switch (operator) {
-        case '=': case '==': return cellValue === targetValue
-        case '!=': return cellValue !== targetValue
-        case '>': return Number(cellValue) > Number(targetValue)
-        case '<': return Number(cellValue) < Number(targetValue)
-        case '>=': return Number(cellValue) >= Number(targetValue)
-        case '<=': return Number(cellValue) <= Number(targetValue)
-        case 'contains': return cellValue.includes(targetValue)
-        default: return false
+
+    // Try each IF / ELSE IF branch in order; return first non-empty match
+    for (const branch of conditions) {
+      if (!branch.rules || branch.rules.length === 0) continue
+      let filtered = rows.filter(row => this._evalIfRules(headers, row, branch.rules))
+      // apply sub-conditions if configured (fields from a second source)
+      if (branch.subRules && branch.subRules.length > 0 && branch.subRules.some(r => r.field)) {
+        filtered = filtered.filter(row => this._evalIfRules(headers, row, branch.subRules))
       }
-    })
-    return [headers, ...filteredRows]
+      if (filtered.length > 0) return [headers, ...filtered]
+    }
+
+    // ELSE: start from rows not matched by any branch, then optionally apply else rules
+    if (data.hasElse) {
+      const matchedSet = new Set()
+      for (const branch of conditions) {
+        if (!branch.rules || branch.rules.length === 0) continue
+        rows.forEach((row, i) => {
+          if (this._evalIfRules(headers, row, branch.rules)) matchedSet.add(i)
+        })
+      }
+      let elseRows = rows.filter((_, i) => !matchedSet.has(i))
+      const elseRules = data.elseBranch?.rules
+      if (elseRules && elseRules.length > 0 && elseRules.some(r => r.field)) {
+        elseRows = elseRows.filter(row => this._evalIfRules(headers, row, elseRules))
+      }
+      const elseSubRules = data.elseBranch?.subRules
+      if (elseSubRules && elseSubRules.length > 0 && elseSubRules.some(r => r.field)) {
+        elseRows = elseRows.filter(row => this._evalIfRules(headers, row, elseSubRules))
+      }
+      return [headers, ...elseRows]
+    }
+
+    return [headers]
+  }
+
+  _evalIfRules(headers, row, rules) {
+    let result = this._evalIfRule(headers, row, rules[0])
+    for (let i = 1; i < rules.length; i++) {
+      const logic = rules[i - 1].logic || '&&'
+      const next = this._evalIfRule(headers, row, rules[i])
+      result = logic === '||' ? result || next : result && next
+    }
+    return result
+  }
+
+  _evalIfRule(headers, row, rule) {
+    const fieldIndex = headers.findIndex(h => h === String(rule.field || '').trim())
+    if (fieldIndex === -1) return false
+    const cell = String(row[fieldIndex] ?? '').trim()
+    const target = String(rule.value ?? '').trim()
+    switch (rule.operator) {
+      case '=': case '==': return cell === target
+      case '!=': return cell !== target
+      case '>': return Number(cell) > Number(target)
+      case '<': return Number(cell) < Number(target)
+      case '>=': return Number(cell) >= Number(target)
+      case '<=': return Number(cell) <= Number(target)
+      case 'contains': return cell.includes(target)
+      case 'not_contains': return !cell.includes(target)
+      case 'in': return target.split(',').map(s => s.trim()).includes(cell)
+      case 'startsWith': return cell.startsWith(target)
+      case 'endsWith': return cell.endsWith(target)
+      default: return false
+    }
   }
 
   executeConditionBelongsNode(data, inputs) {
@@ -371,5 +420,92 @@ export class WorkflowExecutor {
       dataCount: lists.length,
       message: `已接收 ${lists.length} 个数据列表，分析类型: ${data.analysisType || '未设置'}`,
     }
+  }
+
+  executeOutputNode(data, inputs) {
+    const inputData = inputs[0]
+    if (!Array.isArray(inputData) || inputData.length === 0) {
+      throw new Error(`输出节点 "${data.label}" 输入数据为空`)
+    }
+
+    const headers = inputData[0]
+    const rows = inputData.slice(1)
+
+    // Second input may be a scalar unit price (from calculation chain after query-api)
+    const externalUnitPrice = (inputs.length >= 2 && typeof inputs[1] === 'number' && !isNaN(inputs[1]))
+      ? inputs[1]
+      : null
+
+    const unitPriceIdx = headers.findIndex(h => String(h).trim() === '单价')
+    const quantityIdx = headers.findIndex(h => String(h).trim() === '数量')
+
+    const outputHeaders = [...headers, '合价']
+
+    const processedRows = rows.map(row => {
+      const unitPrice = externalUnitPrice !== null
+        ? externalUnitPrice
+        : (unitPriceIdx !== -1 ? (parseFloat(row[unitPriceIdx]) || 0) : 0)
+      const quantity = quantityIdx !== -1 ? (parseFloat(row[quantityIdx]) || 0) : 0
+      const total = parseFloat((unitPrice * quantity).toFixed(4))
+      return [...row, total]
+    })
+
+    return {
+      headers: outputHeaders,
+      rows: processedRows,
+      filename: data.filename || '输出数据',
+      totalRows: processedRows.length,
+      unitPrice: externalUnitPrice,
+    }
+  }
+
+  // ── 后端查询节点 ──────────────────────────────────────────────────
+  // 取输入表格的第一条数据行，按 fieldMappings 组装请求参数，调用 API，
+  // 返回 [apiHeaders, ...apiRows] 格式供后续节点处理。
+  async executeQueryApiNode(data, inputs) {
+    const inputData = inputs[0]
+    if (!Array.isArray(inputData) || inputData.length < 2) {
+      throw new Error('后端查询节点：输入数据为空，请确保上游有数据传入')
+    }
+
+    // Build params from fieldMappings [{inputField, apiParam}]
+    const firstRow = inputData[1]
+    const rowObj = {}
+    headers.forEach((h, i) => { rowObj[h] = firstRow[i] })
+
+    // Build params from fieldMappings [{inputField, apiParam}]
+    const params = {}
+    for (const mapping of (data.fieldMappings || [])) {
+      if (mapping.inputField && mapping.apiParam) {
+        params[mapping.apiParam] = rowObj[mapping.inputField] ?? ''
+      }
+    }
+
+    const { headers: apiHeaders, rows: apiRows } = await queryPriceApi(params)
+
+    if (apiHeaders.length === 0) {
+      throw new Error('后端查询节点：API 未返回任何数据')
+    }
+
+    return [apiHeaders, ...apiRows]
+  }
+
+  // ── 字段提取节点 ──────────────────────────────────────────────────
+  // 从表格数据中提取指定列，返回数值数组（可直接接处理节点）。
+  // 若配置了 extractFirst=true，则只返回第一行的该字段（标量）。
+  executeQueryFieldNode(data, inputs) {
+    const inputData = inputs[0]
+    if (!Array.isArray(inputData) || inputData.length < 2) return []
+
+    const headers = inputData[0]
+    const rows = inputData.slice(1)
+    const fieldName = (data.extractField || '').trim()
+    const colIdx = headers.findIndex(h => String(h).trim() === fieldName)
+    if (colIdx === -1) throw new Error(`字段提取节点：找不到列 "${fieldName}"`)
+
+    if (data.extractFirst) {
+      return parseFloat(rows[0]?.[colIdx]) || 0
+    }
+    return rows.map(r => parseFloat(r[colIdx]) || 0)
   }
 }

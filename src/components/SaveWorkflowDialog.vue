@@ -30,7 +30,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-const props = defineProps({ show: Boolean, nodeCount: Number, edgeCount: Number, defaultName: String, defaultDescription: String })
+const props = defineProps({ show: Boolean, workflow: Object, nodeCount: Number, edgeCount: Number, defaultName: String, defaultDescription: String })
 const emit = defineEmits(['close', 'save'])
 const workflowName = ref('')
 const workflowDescription = ref('')

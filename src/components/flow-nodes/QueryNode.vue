@@ -14,6 +14,14 @@
           <span class="label">查询字段:</span>
           <span class="value">{{ data.field || '未设置' }}</span>
         </div>
+        <div v-else-if="data.nodeType === 'query-api'" class="info-item">
+          <span class="label">API:</span>
+          <span class="value api-url">{{ data.apiUrl ? '已配置' : '未配置' }}</span>
+        </div>
+        <div v-else-if="data.nodeType === 'query-field'" class="info-item">
+          <span class="label">提取列:</span>
+          <span class="value">{{ data.extractField || '未设置' }}</span>
+        </div>
         <div v-else class="info-item">
           <span class="label">筛选条件:</span>
           <span class="value">{{ data.condition ? '已配置' : '未配置' }}</span>
@@ -28,7 +36,12 @@ import { Handle, Position } from '@vue-flow/core'
 import { NodeResizer } from '@vue-flow/node-resizer'
 const props = defineProps({ data: Object, selected: Boolean })
 defineEmits(['run'])
-function getIcon() { return props.data.nodeType === 'query-condition' ? '🔍' : '🔬' }
+function getIcon() {
+  if (props.data.nodeType === 'query-condition') return '🔍'
+  if (props.data.nodeType === 'query-api') return '🌐'
+  if (props.data.nodeType === 'query-field') return '📌'
+  return '🔬'
+}
 </script>
 
 <style scoped>
