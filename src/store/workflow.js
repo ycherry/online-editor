@@ -28,13 +28,21 @@ export const useWorkflowStore = defineStore('workflow', {
       localStorage.setItem('flow_workflows', JSON.stringify(this.workflows))
     },
 
-    createWorkflow(name, description, nodes, edges) {
+    /**
+     * Create a new workflow stored in backend format.
+     * @param {string} name
+     * @param {string} description
+     * @param {object} backendData  - { streamId, nodeId, nodes[] }
+     */
+    createWorkflow(name, description, backendData) {
+      const streamId = backendData.streamId || `wf_${Date.now()}_${Math.random().toString(36).substring(7)}`
       const workflow = {
-        id: `workflow_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        id: streamId,
+        streamId,
         name,
         description,
-        nodes: JSON.parse(JSON.stringify(nodes)),
-        edges: JSON.parse(JSON.stringify(edges)),
+        nodeId: backendData.nodeId || '',
+        nodes: JSON.parse(JSON.stringify(backendData.nodes || [])),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
@@ -44,12 +52,18 @@ export const useWorkflowStore = defineStore('workflow', {
       return workflow
     },
 
+    /**
+     * Update an existing workflow. Accepts backend format fields.
+     * @param {string} id
+     * @param {object} updates - may include { name, description, streamId, nodeId, nodes[] }
+     */
     updateWorkflow(id, updates) {
       const index = this.workflows.findIndex(w => w.id === id)
       if (index !== -1) {
         this.workflows[index] = {
           ...this.workflows[index],
           ...updates,
+          id,                                    // keep original id stable
           updatedAt: new Date().toISOString(),
         }
         if (this.currentWorkflow?.id === id) {
@@ -75,3 +89,4 @@ export const useWorkflowStore = defineStore('workflow', {
     },
   },
 })
+

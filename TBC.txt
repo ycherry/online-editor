@@ -17,3 +17,6 @@ if： 输入：if/elseif/else =》 材料清单表字段
 数据计算模块： 输入： 字段名，运算符 输出值： 计算结果
 
 结果：输入？ 输出： excel数据 
+
+
+根据我截图的样式和实现修改在线编辑器，截图是从简道云的数据工厂获取的https://www.jiandaoyun.com/dashboard/app/69e4978cd869757b2da89f80/etl/69e4a1b056dc70e9005b9987/edit

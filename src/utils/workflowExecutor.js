@@ -102,6 +102,17 @@ export class WorkflowExecutor {
     const nodeType = node.data.nodeType || node.type || 'default'
     const data = { ...node.data, ...(node.data.config || {}) }
 
+    // ── ETL node handlers ──
+    if (nodeType === 'etl-input')  return this.executeDataNode(data)
+    if (nodeType === 'etl-output') return this.executeEtlOutputNode(data, inputs)
+    if (nodeType === 'etl-join')   return this.executeEtlJoinNode(data, inputs)
+    if (nodeType === 'etl-union')  return this.executeEtlUnionNode(data, inputs)
+    if (nodeType === 'etl-group')  return this.executeEtlGroupNode(data, inputs)
+    if (nodeType === 'etl-filter') return this.executeEtlFilterNode(data, inputs)
+    if (nodeType === 'etl-field')  return this.executeEtlFieldNode(data, inputs)
+    if (nodeType === 'etl-pivot')  return inputs[0]
+    if (nodeType === 'etl-dedup')  return this.executeEtlDedupNode(data, inputs)
+
     if (nodeType.includes('data')) return this.executeDataNode(data)
     if (nodeType === 'logic-if') return this.executeLogicIfNode(data, inputs)
     if (nodeType.includes('logic-and')) return inputs.every(i => Boolean(i))
@@ -124,6 +135,164 @@ export class WorkflowExecutor {
     if (nodeType.includes('comparison')) return this.executeComparisonNode(data, inputs)
     if (nodeType.includes('output')) return this.executeOutputNode(data, inputs)
     return inputs[0]
+  }
+
+  // ── ETL node implementations ──
+  executeEtlOutputNode(data, inputs) {
+    return inputs[0] ?? []
+  }
+
+  executeEtlJoinNode(data, inputs) {
+    const left = inputs[0]
+    const right = inputs[1]
+    if (!Array.isArray(left) || !Array.isArray(right)) throw new Error('横向连接节点需要两个数据输入')
+    if (left.length === 0) return []
+
+    const mappings = data.fieldMappings || []
+    if (mappings.length === 0) throw new Error('横向连接节点未配置连接字段')
+
+    const joinType = data.joinType || 'left'
+    const rightIndex = new Map()
+    for (const row of right) {
+      const key = mappings.map(m => String(row[m.rightField] ?? '')).join('|')
+      if (!rightIndex.has(key)) rightIndex.set(key, [])
+      rightIndex.get(key).push(row)
+    }
+
+    const result = []
+    for (const lRow of left) {
+      const key = mappings.map(m => String(lRow[m.leftField] ?? '')).join('|')
+      const matches = rightIndex.get(key)
+      if (matches && matches.length > 0) {
+        for (const rRow of matches) {
+          const merged = { ...lRow }
+          for (const [k, v] of Object.entries(rRow)) {
+            if (data.mergeJoinFields && mappings.some(m => m.rightField === k)) continue
+            merged[k] = v
+          }
+          result.push(merged)
+        }
+      } else if (joinType === 'left' || joinType === 'full') {
+        result.push({ ...lRow })
+      }
+    }
+    if (joinType === 'right' || joinType === 'full') {
+      for (const rRow of right) {
+        const key = mappings.map(m => String(rRow[m.rightField] ?? '')).join('|')
+        const isMatched = left.some(lRow =>
+          mappings.map(m => String(lRow[m.leftField] ?? '')).join('|') === key
+        )
+        if (!isMatched) result.push({ ...rRow })
+      }
+    }
+    return result
+  }
+
+  executeEtlUnionNode(data, inputs) {
+    const all = inputs.filter(Array.isArray).flat()
+    if (data.unionType === 'distinct') {
+      const seen = new Set()
+      return all.filter(row => {
+        const key = JSON.stringify(row)
+        if (seen.has(key)) return false
+        seen.add(key); return true
+      })
+    }
+    return all
+  }
+
+  executeEtlGroupNode(data, inputs) {
+    const rows = inputs[0]
+    if (!Array.isArray(rows) || rows.length === 0) return []
+    const groupFields = data.groupFields || []
+    const aggregations = data.aggregations || []
+    const groups = new Map()
+    for (const row of rows) {
+      const key = groupFields.map(f => String(row[f] ?? '')).join('|')
+      if (!groups.has(key)) groups.set(key, { key, rows: [] })
+      groups.get(key).rows.push(row)
+    }
+    return Array.from(groups.values()).map(({ rows: groupRows }) => {
+      const result = {}
+      for (const f of groupFields) result[f] = groupRows[0][f]
+      for (const agg of aggregations) {
+        const vals = groupRows.map(r => Number(r[agg.field]) || 0)
+        const alias = agg.alias || `${agg.func}(${agg.field})`
+        switch (agg.func) {
+          case 'sum':   result[alias] = vals.reduce((a, b) => a + b, 0); break
+          case 'count': result[alias] = groupRows.length; break
+          case 'avg':   result[alias] = vals.reduce((a, b) => a + b, 0) / vals.length; break
+          case 'max':   result[alias] = Math.max(...vals); break
+          case 'min':   result[alias] = Math.min(...vals); break
+          default:      result[alias] = vals.reduce((a, b) => a + b, 0)
+        }
+      }
+      return result
+    })
+  }
+
+  executeEtlFilterNode(data, inputs) {
+    const rows = inputs[0]
+    if (!Array.isArray(rows) || rows.length === 0) return []
+    const conditions = data.conditions || []
+    if (conditions.length === 0) return rows
+    return rows.filter(row => {
+      let match = this._evalEtlCondition(row, conditions[0])
+      for (let i = 1; i < conditions.length; i++) {
+        const next = this._evalEtlCondition(row, conditions[i])
+        match = conditions[i].logic === 'or' ? match || next : match && next
+      }
+      return match
+    })
+  }
+
+  _evalEtlCondition(row, cond) {
+    const val = row[cond.field]
+    const target = cond.value
+    switch (cond.operator) {
+      case 'eq':         return String(val ?? '') === String(target ?? '')
+      case 'ne':         return String(val ?? '') !== String(target ?? '')
+      case 'gt':         return Number(val) > Number(target)
+      case 'lt':         return Number(val) < Number(target)
+      case 'gte':        return Number(val) >= Number(target)
+      case 'lte':        return Number(val) <= Number(target)
+      case 'contains':   return String(val ?? '').includes(String(target ?? ''))
+      case 'notContains':return !String(val ?? '').includes(String(target ?? ''))
+      case 'empty':      return val === null || val === undefined || val === ''
+      case 'notEmpty':   return val !== null && val !== undefined && val !== ''
+      default:           return true
+    }
+  }
+
+  executeEtlFieldNode(data, inputs) {
+    const rows = inputs[0]
+    if (!Array.isArray(rows) || rows.length === 0) return []
+    const fields = (data.fields || []).filter(f => f.keep !== false && f.source)
+    if (fields.length === 0) return rows
+    return rows.map(row => {
+      const result = {}
+      for (const f of fields) {
+        const key = f.alias || f.source
+        result[key] = row[f.source]
+      }
+      return result
+    })
+  }
+
+  executeEtlDedupNode(data, inputs) {
+    const rows = inputs[0]
+    if (!Array.isArray(rows) || rows.length === 0) return []
+    const fields = (data.fields || []).filter(Boolean)
+    const seen = new Set()
+    const result = []
+    const allRows = data.keepRecord === 'last' ? [...rows].reverse() : rows
+    for (const row of allRows) {
+      const key = fields.length > 0
+        ? fields.map(f => String(row[f] ?? '')).join('|')
+        : JSON.stringify(row)
+      if (!seen.has(key)) { seen.add(key); result.push(row) }
+    }
+    return data.keepRecord === 'last' ? result.reverse() : result
   }
 
   executeDataNode(data) {
