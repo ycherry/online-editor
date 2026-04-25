@@ -47,6 +47,7 @@
     'processing-average': { icon: '≈', color: '#0ea5e9', label: '均值' },
     comparison: { icon: '⬡', color: '#ef4444', label: '多版本比较' },
     'output-excel': { icon: '📤', color: '#22c55e', label: 'Excel输出' },
+    'db-query': { icon: '🗄️', color: '#f59e0b', label: '数据库查询' },
   }
 
   const meta = computed(() => META[nodeType.value] || META['etl-input'])

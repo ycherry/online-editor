@@ -30,9 +30,19 @@
         <button class="hc-btn" @click="handleClear">🗑 清空</button>
       </div>
       <div class="header-right">
+        <button class="hc-btn" @click="handleImportJSON" title="从JSON文件导入">⬆ 导入</button>
+        <button class="hc-btn" @click="handleExportJSON" title="导出为JSON文件">⬇ 导出</button>
         <button class="save-btn" @click="showSaveDialog = true">保存</button>
       </div>
     </div>
+    <!-- Hidden file input for JSON import -->
+    <input
+      ref="importFileInput"
+      type="file"
+      accept=".json"
+      style="display: none"
+      @change="onImportFileChange"
+    />
 
     <!-- ── Body ── -->
     <div class="editor-body">
@@ -114,7 +124,7 @@
           >
             <div class="ctx-item" @click="previewContextNode">🔍 预览结果</div>
             <div class="ctx-item" @click="toggleBreakpoint">
-              {{ executionStore.breakpoints.has(contextMenu.nodeId) ? '移除断点' : '添加断点' }}
+              {{ executionStore.breakpoints.includes(contextMenu.nodeId) ? '移除断点' : '添加断点' }}
             </div>
             <div class="ctx-item danger" @click="deleteContextNode">🗑️ 删除节点</div>
           </div>
@@ -132,6 +142,7 @@
               <span class="bp-help">?</span>
             </div>
             <button
+              v-if="selectedNode.data?.nodeType !== 'db-query'"
               :class="['bp-tab', bottomTab === 'config' && 'active']"
               @click="bottomTab = 'config'"
             >
@@ -142,12 +153,6 @@
               @click="bottomTab = 'preview'; triggerPreview()"
             >
               数据预览
-            </button>
-            <button
-              :class="['bp-tab', bottomTab === 'notes' && 'active']"
-              @click="bottomTab = 'notes'"
-            >
-              节点备注
             </button>
             <div class="bp-spacer"></div>
             <div class="bp-node-name">
@@ -276,7 +281,7 @@
                         </tr>
                       </thead>
                       <tbody>
-                        <tr v-for="(row, i) in previewResult.slice(0, 100)" :key="i">
+                        <tr v-for="(row, i) in previewRows" :key="i">
                           <td v-for="col in previewColumns" :key="col">{{ row[col] ?? '' }}</td>
                         </tr>
                       </tbody>
@@ -287,15 +292,6 @@
               </template>
             </div>
 
-            <!-- Notes tab -->
-            <div v-else-if="bottomTab === 'notes'" class="bp-notes">
-              <textarea
-                v-model="selectedNode.data.notes"
-                class="notes-input"
-                placeholder="为这个节点添加备注说明..."
-                @input="onNodeDataChange"
-              ></textarea>
-            </div>
           </div>
         </div>
       </div>
@@ -308,6 +304,7 @@
       :workflow="currentWorkflow"
       :node-count="nodes.length"
       :edge-count="edges.length"
+      :default-name="workflowTitle"
       @close="showSaveDialog = false"
       @save="handleSaveWorkflow"
     />
@@ -346,18 +343,15 @@
   import ExecutionNodeConfig from '../components/flow-config/ExecutionNodeConfig.vue'
   import OutputNodeConfig from '../components/flow-config/OutputNodeConfig.vue'
   import DefaultNodeConfig from '../components/flow-config/DefaultNodeConfig.vue'
-  import GroupNodeConfig from '../components/flow-config/GroupNodeConfig.vue'
   import ConditionBranchNodeConfig from '../components/flow-config/ConditionBranchNodeConfig.vue'
-  import FilterNodeConfig from '../components/flow-config/FilterNodeConfig.vue'
-  import FieldNodeConfig from '../components/flow-config/FieldNodeConfig.vue'
   import SaveWorkflowDialog from '../components/SaveWorkflowDialog.vue'
   import { WorkflowExecutor } from '../utils/workflowExecutor.js'
   import {
     serializeWorkflow,
-    serializeUpToNode,
+    serializeToStagesFormat,
     deserializeWorkflow,
   } from '../utils/workflowSerializer.js'
-  import { fetchNodeConfig, fetchNodePreview } from '../services/workflowApi.js'
+  import { fetchNodeConfig, fetchNodePreview, fetchDbQuery } from '../services/workflowApi.js'
 
   const workflowStore = useWorkflowStore()
   const executionStore = useExecutionStore()
@@ -367,14 +361,17 @@
   const selectedNode = ref(null)
   const bottomTab = ref('config')
   const showSaveDialog = ref(false)
+  const importFileInput = ref(null)
   const contextMenu = ref({ show: false, x: 0, y: 0, nodeId: null })
   const currentWorkflow = ref(null)
-  const workflowTitle = ref('未命名数据流')
+  const workflowTitle = ref('')
   const streamId = ref('')
   const previewLoading = ref(false)
   const previewError = ref('')
   let executor = null
   let nodeCounter = 0
+  let _previewController = null
+  let _configController = null
 
   // ── Undo / Redo ──
   const history = ref([])
@@ -389,6 +386,8 @@
     // drop any redo future
     history.value = history.value.slice(0, historyIndex.value + 1)
     history.value.push(snap)
+    const MAX_HISTORY = 50
+    if (history.value.length > MAX_HISTORY) history.value.shift()
     historyIndex.value = history.value.length - 1
   }
 
@@ -420,15 +419,13 @@
   const ETL_META = {
     'etl-input': { icon: '→', color: '#4a90e2', label: '输入' },
     'etl-output': { icon: '←', color: '#22c55e', label: '输出' },
-    'etl-group': { icon: '≡', color: '#f59e0b', label: '分组汇总' },
-    'etl-filter': { icon: '▽', color: '#14b8a6', label: '数据筛选' },
-    'etl-field': { icon: '⊞', color: '#8b5cf6', label: '字段设置' },
     // 高级节点
     'logic-if': { icon: '🔀', color: '#10b981', label: 'IF 判断' },
     calculation: { icon: '∑', color: '#8b5cf6', label: '运算' },
     'query-filter': { icon: '▽', color: '#14b8a6', label: '筛选器' },
     'processing-extreme': { icon: '↕', color: '#6366f1', label: '最值' },
     'processing-average': { icon: '≈', color: '#0ea5e9', label: '均值' },
+    'db-query': { icon: '🗄️', color: '#f59e0b', label: '数据库查询' },
   }
 
   const selectedNodeMeta = computed(() => {
@@ -472,23 +469,42 @@
   const previewColumns = computed(() =>
     isTablePreview.value ? Object.keys(previewResult.value[0]) : []
   )
+  const previewRows = computed(() => previewResult.value?.slice(0, 100) ?? [])
 
   async function triggerPreview() {
     if (!selectedNode.value) return
+    // db-query nodes use their own API path
+    if (selectedNode.value.data?.nodeType === 'db-query') {
+      return callDbQueryApi(selectedNode.value.id)
+    }
+    _previewController?.abort()
+    _previewController = new AbortController()
     previewLoading.value = true
     previewError.value = ''
     const targetId = selectedNode.value.id
-    const payload = serializeUpToNode(nodes.value, edges.value, targetId, streamId.value)
-    console.log(`[fetchNodePreview] 节点=${targetId}`, payload)
+    const { stages, stageId } = serializeToStagesFormat(
+      nodes.value,
+      edges.value,
+      targetId,
+      streamId.value
+    )
+    const payload = {
+      appId: currentWorkflow.value?.appId || '',
+      etlId: streamId.value,
+      stageId,
+      stages,
+    }
+    if (import.meta.env.DEV) console.log(`[fetchNodePreview] 节点=${targetId}`, payload)
     try {
-      const result = await fetchNodePreview(payload)
-      console.log(`[fetchNodePreview] 响应`, result)
+      const result = await fetchNodePreview(payload, _previewController.signal)
+      if (import.meta.env.DEV) console.log(`[fetchNodePreview] 响应`, result)
       // 将结果写入 executionStore，以便现有预览表格展示逻辑复用
       const output = result?.data ?? result?.rows ?? result?.output ?? result
-      executionStore.setNodeResult(targetId, { status: 'completed', output })
+      executionStore.setNodeResult({ nodeId: targetId, status: 'completed', output })
     } catch (e) {
-      previewError.value = e.message || '获取预览失败'
-      console.error('[fetchNodePreview]', e)
+      if (e.name === 'AbortError') return
+      previewError.value = '获取预览失败'
+      if (import.meta.env.DEV) console.error('[fetchNodePreview]', e)
     } finally {
       previewLoading.value = false
     }
@@ -498,7 +514,7 @@
   const selectedNodeRequired = computed(() => {
     if (!selectedNode.value) return 0
     const nt = selectedNode.value.data?.nodeType
-    if (['etl-input', 'data'].includes(nt)) return 0
+    if (['etl-input', 'data', 'db-query'].includes(nt)) return 0
     if (['etl-join', 'etl-union'].includes(nt)) return 2
     return 1
   })
@@ -511,7 +527,7 @@
   )
   const connectionHintCount = computed(() => selectedNodeRequired.value)
 
-  const nodeCategories = ref([
+  const nodeCategories = [
     {
       name: '输入输出',
       warn: false,
@@ -532,30 +548,17 @@
         },
       ],
     },
+
     {
-      name: '数据处理',
-      warn: true,
+      name: '数据库',
+      warn: false,
       nodes: [
         {
-          type: 'etl-group',
-          label: '分组汇总',
-          icon: '≡',
+          type: 'db-query',
+          label: '数据库查询',
+          icon: '🗄️',
           color: '#f59e0b',
-          defaultConfig: { groupFields: [], aggregations: [] },
-        },
-        {
-          type: 'etl-filter',
-          label: '数据筛选',
-          icon: '▽',
-          color: '#14b8a6',
-          defaultConfig: { conditions: [] },
-        },
-        {
-          type: 'etl-field',
-          label: '字段设置',
-          icon: '⊞',
-          color: '#8b5cf6',
-          defaultConfig: { fields: [] },
+          defaultConfig: {},
         },
       ],
     },
@@ -607,39 +610,37 @@
         },
       ],
     },
-  ])
+  ]
+
+  const CONFIG_MAP = markRaw({
+    // ETL nodes
+    'etl-input': DataNodeConfig,
+    'etl-output': OutputNodeConfig,
+    // Legacy nodes
+    'branch-condition': ConditionBranchNodeConfig,
+    'logic-if': LogicIfNodeConfig,
+    'logic-and': LogicNodeConfig,
+    'logic-or': LogicNodeConfig,
+    'logic-nor': LogicNodeConfig,
+    'condition-belongs': ConditionNodeConfig,
+    'condition-compare': ConditionNodeConfig,
+    calculation: CalculationNodeConfig,
+    'query-filter': QueryNodeConfig,
+    'query-condition': QueryNodeConfig,
+    'query-api': QueryNodeConfig,
+    'query-field': QueryNodeConfig,
+    'processing-extreme': ProcessingNodeConfig,
+    'processing-average': ProcessingNodeConfig,
+    'processing-interpolation': ProcessingNodeConfig,
+    'processing-price': ProcessingNodeConfig,
+    'container-list': ContainerNodeConfig,
+    'container-dict': ContainerNodeConfig,
+    'execution-do': ExecutionNodeConfig,
+    'execution-for': ExecutionNodeConfig,
+  })
 
   function getConfigComponent(nodeType) {
-    const map = {
-      // ETL nodes
-      'etl-input': DataNodeConfig,
-      'etl-output': OutputNodeConfig,
-      'etl-group': GroupNodeConfig,
-      'etl-filter': FilterNodeConfig,
-      'etl-field': FieldNodeConfig,
-      // Legacy nodes
-      'branch-condition': ConditionBranchNodeConfig,
-      'logic-if': LogicIfNodeConfig,
-      'logic-and': LogicNodeConfig,
-      'logic-or': LogicNodeConfig,
-      'logic-nor': LogicNodeConfig,
-      'condition-belongs': ConditionNodeConfig,
-      'condition-compare': ConditionNodeConfig,
-      calculation: CalculationNodeConfig,
-      'query-filter': QueryNodeConfig,
-      'query-condition': QueryNodeConfig,
-      'query-api': QueryNodeConfig,
-      'query-field': QueryNodeConfig,
-      'processing-extreme': ProcessingNodeConfig,
-      'processing-average': ProcessingNodeConfig,
-      'processing-interpolation': ProcessingNodeConfig,
-      'processing-price': ProcessingNodeConfig,
-      'container-list': ContainerNodeConfig,
-      'container-dict': ContainerNodeConfig,
-      'execution-do': ExecutionNodeConfig,
-      'execution-for': ExecutionNodeConfig,
-    }
-    return markRaw(map[nodeType] || DefaultNodeConfig)
+    return CONFIG_MAP[nodeType] ?? DefaultNodeConfig
   }
 
   function onDragStart(event, item) {
@@ -658,16 +659,16 @@
     // All nodes in ETL_META use the unified EtlNode renderer
     const isEtl = type in ETL_META
     const vfType = isEtl ? 'etl' : type.split('-')[0]
-    const cat = nodeCategories.value.flatMap((c) => c.nodes).find((n) => n.type === type)
+    const cat = nodeCategories.flatMap((c) => c.nodes).find((n) => n.type === type)
     const config = cat ? JSON.parse(JSON.stringify(cat.defaultConfig)) : {}
     nodeCounter++
-    const nodeWidth = isEtl ? 140 : 140
+    const nodeWidth = 140
     addNodes([
       {
         id: `node-${Date.now()}-${nodeCounter}`,
         type: vfType,
         position,
-        data: { label: `${label} ${nodeCounter}`, nodeType: type, color, config, notes: '' },
+        data: { label: `${label} ${nodeCounter}`, nodeType: type, color, config },
         width: nodeWidth,
         height: isEtl ? 40 : 80,
       },
@@ -677,10 +678,26 @@
 
   function onNodeClick({ node }) {
     selectedNode.value = node
-    bottomTab.value = 'config'
-    previewError.value = ''
-    previewLoading.value = false
     contextMenu.value.show = false
+    const isDbQuery = node.data?.nodeType === 'db-query'
+    if (isDbQuery) {
+      bottomTab.value = 'preview'
+      previewError.value = ''
+      previewLoading.value = false
+      // Auto-fetch if no result cached yet
+      const existing = executionStore.getNodeResult(node.id)
+      if (!existing?.output) {
+        nextTick(() => callDbQueryApi(node.id))
+      }
+    } else {
+      bottomTab.value = 'config'
+      previewError.value = ''
+      previewLoading.value = false
+      const hasIncoming = edges.value.some((e) => e.target === node.id)
+      if (hasIncoming) {
+        nextTick(() => callNodeConfigApi(node.id))
+      }
+    }
   }
   function onPaneClick() {
     selectedNode.value = null
@@ -693,36 +710,90 @@
   function onConnect(params) {
     addEdges([{ ...params, id: `edge-${Date.now()}` }])
     _snapshot()
-    // 连线建立后，向后端获取目标节点的配置建议
-    nextTick(async () => {
-      const targetId = params.target
-      const targetNode = nodes.value.find((n) => n.id === targetId)
-      if (!targetNode) return
-      const payload = serializeUpToNode(nodes.value, edges.value, targetId, streamId.value)
-      console.log(`[fetchNodeConfig] 节点=${targetId}`, payload)
-      try {
-        const result = await fetchNodeConfig(payload)
-        console.log(`[fetchNodeConfig] 响应`, result)
-        // 如果后端返回了配置建议，合并到 config 中
-        if (result && typeof result === 'object' && result.config) {
-          const idx = nodes.value.findIndex((n) => n.id === targetId)
-          if (idx !== -1) {
-            nodes.value[idx] = {
-              ...nodes.value[idx],
-              data: {
-                ...nodes.value[idx].data,
-                config: { ...nodes.value[idx].data.config, ...result.config },
-              },
-            }
-            if (selectedNode.value?.id === targetId) {
-              selectedNode.value = nodes.value[idx]
-            }
+    const targetNode = nodes.value.find((n) => n.id === params.target)
+    if (targetNode?.data?.nodeType === 'db-query') {
+      nextTick(() => callDbQueryApi(params.target))
+    } else {
+      nextTick(() => callNodeConfigApi(params.target))
+    }
+  }
+
+  /**
+   * Call the db query API for a db-query node, store result in executionStore.
+   * The etl-style status dot is driven by executionStore automatically.
+   */
+  let _dbQueryController = null
+  async function callDbQueryApi(nodeId) {
+    const targetNode = nodes.value.find((n) => n.id === nodeId)
+    if (!targetNode) return
+    _dbQueryController?.abort()
+    _dbQueryController = new AbortController()
+    executionStore.setNodeResult({ nodeId, status: 'running', output: null })
+    if (selectedNode.value?.id === nodeId) {
+      previewLoading.value = true
+      previewError.value = ''
+    }
+    const { stages, stageId } = serializeToStagesFormat(
+      nodes.value,
+      edges.value,
+      nodeId,
+      streamId.value
+    )
+    const payload = {
+      appId: currentWorkflow.value?.appId || '',
+      etlId: streamId.value,
+      stageId,
+      stages,
+    }
+    if (import.meta.env.DEV) console.log(`[fetchDbQuery] 节点=${nodeId}`, payload)
+    try {
+      const result = await fetchDbQuery(payload, _dbQueryController.signal)
+      if (import.meta.env.DEV) console.log(`[fetchDbQuery] 响应`, result)
+      const output = result?.data ?? result?.rows ?? result?.output ?? result
+      executionStore.setNodeResult({ nodeId, status: 'completed', output })
+    } catch (e) {
+      if (e.name === 'AbortError') return
+      executionStore.setNodeResult({ nodeId, status: 'error', output: null })
+      if (selectedNode.value?.id === nodeId) previewError.value = '数据库查询失败'
+      if (import.meta.env.DEV) console.error('[fetchDbQuery]', e)
+    } finally {
+      if (selectedNode.value?.id === nodeId) previewLoading.value = false
+    }
+  }
+
+  /**
+   * Call the node config API for a given node using the Jianduoyun stages format.
+   * Merges any returned config suggestion into the node's data.
+   */
+  async function callNodeConfigApi(nodeId) {
+    const targetNode = nodes.value.find((n) => n.id === nodeId)
+    if (!targetNode) return
+    _configController?.abort()
+    _configController = new AbortController()
+    const payload = serializeToStagesFormat(nodes.value, edges.value, nodeId, streamId.value)
+    if (import.meta.env.DEV) console.log(`[fetchNodeConfig] 节点=${nodeId}`, payload)
+    try {
+      const result = await fetchNodeConfig(payload, _configController.signal)
+      if (import.meta.env.DEV) console.log(`[fetchNodeConfig] 响应`, result)
+      if (result && typeof result === 'object' && result.config) {
+        const idx = nodes.value.findIndex((n) => n.id === nodeId)
+        if (idx !== -1) {
+          nodes.value[idx] = {
+            ...nodes.value[idx],
+            data: {
+              ...nodes.value[idx].data,
+              config: { ...nodes.value[idx].data.config, ...result.config },
+            },
+          }
+          if (selectedNode.value?.id === nodeId) {
+            selectedNode.value = nodes.value[idx]
           }
         }
-      } catch (e) {
-        console.warn('[fetchNodeConfig] 接口未就绪或返回错误:', e.message)
       }
-    })
+    } catch (e) {
+      if (e.name === 'AbortError') return
+      if (import.meta.env.DEV) console.warn('[fetchNodeConfig] 接口未就绪或返回错误:', e.message)
+    }
   }
   function onNodeDataChange() {
     const idx = nodes.value.findIndex((n) => n.id === selectedNode.value.id)
@@ -752,7 +823,7 @@
   async function handleRun() {
     if (executionStore.isRunning) return
     const payload = serializeWorkflow(nodes.value, edges.value, streamId.value)
-    console.log('[Backend payload]', JSON.stringify(payload, null, 2))
+    if (import.meta.env.DEV) console.log('[Backend payload]', JSON.stringify(payload, null, 2))
     executionStore.clearResults()
     executor = new WorkflowExecutor(nodes.value, edges.value, executionStore)
     try {
@@ -766,7 +837,7 @@
     if (!node) return
     const tempExecutor = new WorkflowExecutor(nodes.value, edges.value, executionStore)
     try {
-      await tempExecutor.executeNode(node)
+      await tempExecutor.executeNode(nodeId)
       if (selectedNode.value?.id === nodeId) bottomTab.value = 'preview'
     } catch (e) {
       console.error(e)
@@ -783,9 +854,9 @@
     executionStore.clearResults()
     _snapshot()
   }
-  function handleSaveWorkflow({ name, description }) {
-    if (!streamId.value)
-      streamId.value = `wf_${Date.now()}_${Math.random().toString(36).substring(7)}`
+  function handleSaveWorkflow(name, description) {
+    workflowTitle.value = name
+    if (!streamId.value) streamId.value = crypto.randomUUID()
     const backendData = serializeWorkflow(nodes.value, edges.value, streamId.value)
     if (currentWorkflow.value?.id) {
       workflowStore.updateWorkflow(currentWorkflow.value.id, { name, description, ...backendData })
@@ -801,7 +872,7 @@
     nodes.value = n
     edges.value = e
     streamId.value = sid || wf.streamId || wf.id || ''
-    workflowTitle.value = wf.name || '未命名数据流'
+    workflowTitle.value = wf.name || ''
     currentWorkflow.value = wf
     selectedNode.value = null
     nextTick(() => {
@@ -809,6 +880,75 @@
       _snapshot()
     })
   }
+  function handleExportJSON() {
+    const exportData = {
+      version: '1.0',
+      title: workflowTitle.value,
+      nodes: nodes.value,
+      edges: edges.value,
+    }
+    const json = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `价格分析_${Date.now()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  function handleImportJSON() {
+    if (importFileInput.value) {
+      importFileInput.value.value = ''
+      importFileInput.value.click()
+    }
+  }
+
+  function onImportFileChange(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result)
+        if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+          alert('无效的工作流JSON文件：缺少 nodes 或 edges 字段')
+          return
+        }
+        const validNodes = data.nodes.every(
+          (n) => n && typeof n.id === 'string' && typeof n.type === 'string' && n.data !== undefined
+        )
+        const validEdges = data.edges.every(
+          (ex) =>
+            ex &&
+            typeof ex.id === 'string' &&
+            typeof ex.source === 'string' &&
+            typeof ex.target === 'string'
+        )
+        if (!validNodes || !validEdges) {
+          alert('无效的工作流JSON文件：节点或边数据格式错误')
+          return
+        }
+        if (nodes.value.length > 0 && !confirm('导入将覆盖当前画布，确定继续？')) return
+        nodes.value = data.nodes
+        edges.value = data.edges
+        if (data.title) workflowTitle.value = data.title
+        selectedNode.value = null
+        currentWorkflow.value = null
+        executionStore.clearResults()
+        nextTick(() => {
+          fitView()
+          _snapshot()
+        })
+      } catch {
+        alert('文件解析失败，请确认是有效的JSON文件')
+      }
+    }
+    reader.readAsText(file)
+  }
+
   function handleClear() {
     if (confirm('确定清空当前画布？')) {
       nodes.value = []
@@ -949,6 +1089,7 @@
   .header-right {
     display: flex;
     align-items: center;
+    gap: 6px;
     min-width: 80px;
     justify-content: flex-end;
   }
@@ -1305,27 +1446,6 @@
     overflow: auto;
     background: #1e1e2e;
     color: #cdd6f4;
-  }
-
-  .bp-notes {
-    flex: 1;
-    padding: 12px 16px;
-    display: flex;
-  }
-
-  .notes-input {
-    flex: 1;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-    padding: 10px;
-    font-size: 13px;
-    resize: none;
-    font-family: inherit;
-    color: #374151;
-  }
-  .notes-input:focus {
-    outline: none;
-    border-color: #3b82f6;
   }
 
   /* ── Context menu ── */

@@ -19,7 +19,7 @@ export const useDataSourceStore = defineStore('datasource', {
     addDataSource(dataSource) {
       const newDs = {
         ...dataSource,
-        id: `ds_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
       }
       this.dataSources.push(newDs)

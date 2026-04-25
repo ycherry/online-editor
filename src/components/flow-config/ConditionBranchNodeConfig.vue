@@ -99,7 +99,60 @@
         <span class="branch-label-tag tag-else">ELSE</span>
         <button class="btn-remove-branch" @click="disableElse" title="移除 ELSE 分支">×</button>
       </div>
-      <p class="else-hint">满足以上所有条件均不成立时走此分支</p>
+      <!-- ELSE Rules -->
+      <div class="rules-list">
+        <template v-for="(rule, rIdx) in (localData.elseBranch?.rules || [])" :key="rIdx">
+          <div class="rule-row">
+            <input
+              v-model="rule.field"
+              class="rule-input field-input"
+              placeholder="字段名"
+              @input="emitUpdate"
+            />
+            <select v-model="rule.fieldType" class="rule-select type-select" @change="onTypeChange(rule)">
+              <option value="string">文本</option>
+              <option value="number">数字</option>
+              <option value="boolean">布尔</option>
+              <option value="date">日期</option>
+            </select>
+            <select v-model="rule.operator" class="rule-select op-select" @change="emitUpdate">
+              <option v-for="op in getOperators(rule.fieldType)" :key="op.value" :value="op.value">
+                {{ op.label }}
+              </option>
+            </select>
+            <select
+              v-if="rule.fieldType === 'boolean'"
+              v-model="rule.value"
+              class="rule-select value-select"
+              @change="emitUpdate"
+            >
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+            <input
+              v-else
+              v-model="rule.value"
+              class="rule-input value-input"
+              placeholder="值"
+              @input="emitUpdate"
+            />
+            <button
+              class="btn-remove-rule"
+              :disabled="(localData.elseBranch?.rules || []).length <= 1"
+              @click="removeElseRule(rIdx)"
+            >
+              ×
+            </button>
+          </div>
+          <div v-if="rIdx < (localData.elseBranch?.rules || []).length - 1" class="logic-connector-row">
+            <select v-model="rule.logic" class="logic-select" @change="emitUpdate">
+              <option value="&&">AND（且）</option>
+              <option value="||">OR（或）</option>
+            </select>
+          </div>
+        </template>
+        <button class="btn-add-rule" @click="addElseRule">+ 添加条件</button>
+      </div>
     </div>
   </div>
 </template>
@@ -161,6 +214,9 @@
       }))
     }
     if (data.hasElse === undefined) data.hasElse = false
+    if (data.hasElse && !data.elseBranch) {
+      data.elseBranch = { id: 'branch-else', rules: [createRule()] }
+    }
     return data
   }
 
@@ -213,12 +269,32 @@
 
   function enableElse() {
     localData.value.hasElse = true
+    if (!localData.value.elseBranch) {
+      localData.value.elseBranch = { id: 'branch-else', rules: [createRule()] }
+    }
     emitUpdate()
   }
 
   function disableElse() {
     localData.value.hasElse = false
+    localData.value.elseBranch = null
     emitUpdate()
+  }
+
+  function addElseRule() {
+    if (!localData.value.elseBranch) {
+      localData.value.elseBranch = { id: 'branch-else', rules: [] }
+    }
+    localData.value.elseBranch.rules.push(createRule())
+    emitUpdate()
+  }
+
+  function removeElseRule(rIdx) {
+    const rules = localData.value.elseBranch?.rules
+    if (rules && rules.length > 1) {
+      rules.splice(rIdx, 1)
+      emitUpdate()
+    }
   }
 
   function emitUpdate() {

@@ -14,6 +14,25 @@
 
 // ── Type mappings ──────────────────────────────────────────────────────────────
 
+/** Editor nodeType → Jianduoyun-style stage type */
+const EDITOR_TO_STAGE_TYPE = {
+  'etl-input': 'input',
+  data: 'input',
+  'etl-output': 'output',
+  'output-excel': 'output',
+  'etl-join': 'join',
+  'etl-union': 'union',
+  'query-filter': 'filter',
+  'etl-pivot': 'pivot',
+  'etl-dedup': 'dedup',
+  'logic-if': 'if',
+  calculation: 'calc',
+  comparison: 'compare',
+  'branch-condition': 'branch',
+  'processing-extreme': 'extreme',
+  'processing-average': 'average',
+}
+
 /** Editor nodeType → backend type */
 const EDITOR_TO_BACKEND = {
   'etl-input': 'source',
@@ -22,10 +41,7 @@ const EDITOR_TO_BACKEND = {
   'output-excel': 'excel',
   'etl-join': 'join',
   'etl-union': 'union',
-  'etl-group': 'group',
-  'etl-filter': 'dbFilter',
   'query-filter': 'dbSelect',
-  'etl-field': 'fieldMapping',
   'etl-pivot': 'pivot',
   'etl-dedup': 'dedup',
   'logic-if': 'if',
@@ -42,9 +58,6 @@ const BACKEND_TO_EDITOR = {
   excel: 'etl-output',
   join: 'etl-join',
   union: 'etl-union',
-  group: 'etl-group',
-  dbFilter: 'etl-filter',
-  fieldMapping: 'etl-field',
   pivot: 'etl-pivot',
   dedup: 'etl-dedup',
   max: 'processing-extreme',
@@ -63,9 +76,6 @@ const EDITOR_TYPE_COLOR = {
   'etl-output': '#22c55e',
   'etl-join': '#3b82f6',
   'etl-union': '#6366f1',
-  'etl-group': '#f59e0b',
-  'etl-filter': '#14b8a6',
-  'etl-field': '#8b5cf6',
   'etl-pivot': '#ec4899',
   'etl-dedup': '#64748b',
   'processing-extreme': '#6366f1',
@@ -276,6 +286,69 @@ export function deserializeWorkflow(data) {
   })
 
   return { nodes, edges, streamId: data.streamId || '', outputNodeId: data.nodeId || '' }
+}
+
+/**
+ * Convert a Vue Flow node to a Jianduoyun-style stage object.
+ */
+function nodeToStage(node, edges) {
+  const nt = node.data?.nodeType || node.type
+  const config = node.data?.config || {}
+  const stageType = EDITOR_TO_STAGE_TYPE[nt] || nt
+
+  const input = edges.filter((e) => e.target === node.id).map((e) => e.source)
+
+  const stage = {
+    id: node.id,
+    title: node.data?.label || '',
+    posX: Math.round(node.position?.x ?? 0),
+    posY: Math.round(node.position?.y ?? 0),
+    type: stageType,
+  }
+
+  if (stageType === 'input') {
+    stage.source = {
+      entryId: config.entryId || config.id || config.batchNo || '',
+      subform: config.subform || '',
+    }
+    stage.mainFields = config.mainFields || []
+    stage.subformFields = config.subformFields || []
+  } else if (stageType === 'join') {
+    stage.join = config.join || 'inner'
+    stage.merge_rel_field = config.merge_rel_field ?? false
+    stage.relation = config.relation || []
+    stage.remark = config.remark || ''
+    if (input.length) stage.input = input
+  } else {
+    const { source: _s, data: _d, color: _c, notes: _n, label: _l, ...rest } = config
+    Object.assign(stage, rest)
+    if (input.length) stage.input = input
+  }
+
+  return stage
+}
+
+/**
+ * Serialize the subgraph up to targetNodeId in Jianduoyun data-factory stages format.
+ * Sent to the backend when a node is connected or selected.
+ *
+ * @param {Array}  nodes        - All Vue Flow nodes
+ * @param {Array}  edges        - All Vue Flow edges
+ * @param {string} targetNodeId - The node to compute up to
+ * @param {string} streamId
+ * @returns {{ stages: object, stageId: string, streamId: string }}
+ */
+export function serializeToStagesFormat(nodes, edges, targetNodeId, streamId = '') {
+  const subNodes = collectAncestors(nodes, edges, targetNodeId)
+  const subNodeIds = new Set(subNodes.map((n) => n.id))
+  const subEdges = edges.filter((e) => subNodeIds.has(e.source) && subNodeIds.has(e.target))
+
+  const stages = {}
+  for (const node of subNodes) {
+    stages[node.id] = nodeToStage(node, subEdges)
+  }
+
+  return { stages, stageId: targetNodeId, streamId }
 }
 
 /** Reconstruct editor config object from a backend node object */

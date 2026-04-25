@@ -80,6 +80,10 @@
   async function handleFileSelect(event) {
     const file = event.target.files?.[0]
     if (!file) return
+    if (file.size > 10 * 1024 * 1024) {
+      uploadError.value = '文件大小不能超过 10MB'
+      return
+    }
     uploadError.value = ''
     try {
       const fileType = detectFileType(file.name)

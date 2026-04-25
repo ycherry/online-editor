@@ -1,11 +1,48 @@
-import { useExecutionStore } from '@/store/execution'
 import { queryPriceApi } from '@/services/priceAnalysisService'
 
+/**
+ * Topological sort (Kahn's algorithm). Pure utility — not in Pinia.
+ */
+export function getExecutionOrder(nodes, edges) {
+  const inDegree = new Map()
+  const adjacency = new Map()
+
+  nodes.forEach((node) => {
+    inDegree.set(node.id, 0)
+    adjacency.set(node.id, [])
+  })
+
+  edges.forEach((edge) => {
+    adjacency.get(edge.source)?.push(edge.target)
+    inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1)
+  })
+
+  const queue = []
+  const result = []
+
+  inDegree.forEach((degree, nodeId) => {
+    if (degree === 0) queue.push(nodeId)
+  })
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift()
+    result.push(nodeId)
+    const neighbors = adjacency.get(nodeId) || []
+    for (const neighbor of neighbors) {
+      const newDegree = (inDegree.get(neighbor) || 0) - 1
+      inDegree.set(neighbor, newDegree)
+      if (newDegree === 0) queue.push(neighbor)
+    }
+  }
+
+  return result
+}
+
 export class WorkflowExecutor {
-  constructor(nodes, edges) {
+  constructor(nodes, edges, executionStore) {
     this.nodes = nodes
     this.edges = edges
-    this.executionStore = useExecutionStore()
+    this.executionStore = executionStore
     this.nodeResults = new Map()
     this.isStopRequested = false
     this._resumeResolve = null
@@ -16,7 +53,7 @@ export class WorkflowExecutor {
     this.nodeResults.clear()
 
     try {
-      const executionOrder = this.executionStore.getExecutionOrder(this.nodes, this.edges)
+      const executionOrder = getExecutionOrder(this.nodes, this.edges)
       this.executionStore.startExecution(executionOrder.length)
 
       for (const nodeId of executionOrder) {
@@ -50,12 +87,12 @@ export class WorkflowExecutor {
   waitForContinue() {
     return new Promise((resolve) => {
       this._resumeResolve = resolve
-      const unwatch = setInterval(() => {
-        if (this.executionStore.globalStatus === 'running' || this.isStopRequested) {
-          clearInterval(unwatch)
+      const unsubscribe = this.executionStore.$subscribe((_, state) => {
+        if (state.globalStatus === 'running' || this.isStopRequested) {
+          unsubscribe()
           resolve()
         }
-      }, 200)
+      })
     })
   }
 
@@ -117,9 +154,6 @@ export class WorkflowExecutor {
     if (nodeType === 'etl-output') return this.executeEtlOutputNode(data, inputs)
     if (nodeType === 'etl-join') return this.executeEtlJoinNode(data, inputs)
     if (nodeType === 'etl-union') return this.executeEtlUnionNode(data, inputs)
-    if (nodeType === 'etl-group') return this.executeEtlGroupNode(data, inputs)
-    if (nodeType === 'etl-filter') return this.executeEtlFilterNode(data, inputs)
-    if (nodeType === 'etl-field') return this.executeEtlFieldNode(data, inputs)
     if (nodeType === 'etl-pivot') return inputs[0]
     if (nodeType === 'etl-dedup') return this.executeEtlDedupNode(data, inputs)
 
@@ -216,106 +250,6 @@ export class WorkflowExecutor {
       })
     }
     return all
-  }
-
-  executeEtlGroupNode(data, inputs) {
-    const rows = inputs[0]
-    if (!Array.isArray(rows) || rows.length === 0) return []
-    const groupFields = data.groupFields || []
-    const aggregations = data.aggregations || []
-    const groups = new Map()
-    for (const row of rows) {
-      const key = groupFields.map((f) => String(row[f] ?? '')).join('|')
-      if (!groups.has(key)) groups.set(key, { key, rows: [] })
-      groups.get(key).rows.push(row)
-    }
-    return Array.from(groups.values()).map(({ rows: groupRows }) => {
-      const result = {}
-      for (const f of groupFields) result[f] = groupRows[0][f]
-      for (const agg of aggregations) {
-        const vals = groupRows.map((r) => Number(r[agg.field]) || 0)
-        const alias = agg.alias || `${agg.func}(${agg.field})`
-        switch (agg.func) {
-          case 'sum':
-            result[alias] = vals.reduce((a, b) => a + b, 0)
-            break
-          case 'count':
-            result[alias] = groupRows.length
-            break
-          case 'avg':
-            result[alias] = vals.reduce((a, b) => a + b, 0) / vals.length
-            break
-          case 'max':
-            result[alias] = Math.max(...vals)
-            break
-          case 'min':
-            result[alias] = Math.min(...vals)
-            break
-          default:
-            result[alias] = vals.reduce((a, b) => a + b, 0)
-        }
-      }
-      return result
-    })
-  }
-
-  executeEtlFilterNode(data, inputs) {
-    const rows = inputs[0]
-    if (!Array.isArray(rows) || rows.length === 0) return []
-    const conditions = data.conditions || []
-    if (conditions.length === 0) return rows
-    return rows.filter((row) => {
-      let match = this._evalEtlCondition(row, conditions[0])
-      for (let i = 1; i < conditions.length; i++) {
-        const next = this._evalEtlCondition(row, conditions[i])
-        match = conditions[i].logic === 'or' ? match || next : match && next
-      }
-      return match
-    })
-  }
-
-  _evalEtlCondition(row, cond) {
-    const val = row[cond.field]
-    const target = cond.value
-    switch (cond.operator) {
-      case 'eq':
-        return String(val ?? '') === String(target ?? '')
-      case 'ne':
-        return String(val ?? '') !== String(target ?? '')
-      case 'gt':
-        return Number(val) > Number(target)
-      case 'lt':
-        return Number(val) < Number(target)
-      case 'gte':
-        return Number(val) >= Number(target)
-      case 'lte':
-        return Number(val) <= Number(target)
-      case 'contains':
-        return String(val ?? '').includes(String(target ?? ''))
-      case 'notContains':
-        return !String(val ?? '').includes(String(target ?? ''))
-      case 'empty':
-        return val === null || val === undefined || val === ''
-      case 'notEmpty':
-        return val !== null && val !== undefined && val !== ''
-      default:
-        return true
-    }
-  }
-
-  executeEtlFieldNode(data, inputs) {
-    const rows = inputs[0]
-    if (!Array.isArray(rows) || rows.length === 0) return []
-    const fields = (data.fields || []).filter((f) => f.keep !== false && f.source)
-    if (fields.length === 0) return rows
-    return rows.map((row) => {
-      const result = {}
-      for (const f of fields) {
-        const key = f.alias || f.source
-        result[key] = row[f.source]
-      }
-      return result
-    })
   }
 
   executeEtlDedupNode(data, inputs) {

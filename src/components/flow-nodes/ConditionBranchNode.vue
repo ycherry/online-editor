@@ -54,7 +54,13 @@
       summary: summarize(b.rules),
     }))
     if (cfg.hasElse) {
-      list.push({ id: 'branch-else', isElse: true, summary: '其他情况' })
+      list.push({
+        id: 'branch-else',
+        isElse: true,
+        summary: cfg.elseBranch?.rules?.some((r) => r.field)
+          ? summarize(cfg.elseBranch.rules)
+          : '其他情况',
+      })
     }
     return list
   })

@@ -35,8 +35,7 @@ export const useWorkflowStore = defineStore('workflow', {
      * @param {object} backendData  - { streamId, nodeId, nodes[] }
      */
     createWorkflow(name, description, backendData) {
-      const streamId =
-        backendData.streamId || `wf_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      const streamId = backendData.streamId || crypto.randomUUID()
       const workflow = {
         id: streamId,
         streamId,

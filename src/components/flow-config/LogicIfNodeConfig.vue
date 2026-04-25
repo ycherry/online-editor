@@ -277,7 +277,7 @@ function removeBranch(bIdx) {
 }
 function enableElse() {
   localData.value.hasElse = true
-  if (!localData.value.elseBranch) localData.value.elseBranch = { rules: [], subRules: [] }
+  if (!localData.value.elseBranch) localData.value.elseBranch = createBranch()
   else if (!localData.value.elseBranch.subRules) localData.value.elseBranch.subRules = []
   emitUpdate()
 }
@@ -287,7 +287,7 @@ function disableElse() {
   emitUpdate()
 }
 function addElseRule() {
-  if (!localData.value.elseBranch) localData.value.elseBranch = { rules: [], subRules: [] }
+  if (!localData.value.elseBranch) localData.value.elseBranch = createBranch()
   localData.value.elseBranch.rules.push(createRule())
   emitUpdate()
 }
@@ -296,7 +296,7 @@ function removeElseRule(rIdx) {
   if (rules && rules.length > 1) { rules.splice(rIdx, 1); emitUpdate() }
 }
 function addElseSubRule() {
-  if (!localData.value.elseBranch) localData.value.elseBranch = { rules: [], subRules: [] }
+  if (!localData.value.elseBranch) localData.value.elseBranch = createBranch()
   if (!localData.value.elseBranch.subRules) localData.value.elseBranch.subRules = []
   localData.value.elseBranch.subRules.push(createRule())
   emitUpdate()

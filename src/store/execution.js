@@ -4,17 +4,17 @@ export const useExecutionStore = defineStore('execution', {
   state: () => ({
     mode: 'normal',
     globalStatus: 'idle',
-    results: new Map(),
-    breakpoints: new Set(),
+    results: {},
+    breakpoints: [],
     currentNodeId: null,
     executionHistory: [],
     progress: { total: 0, completed: 0, percentage: 0 },
   }),
 
   getters: {
-    getNodeResult: (state) => (nodeId) => state.results.get(nodeId),
-    getNodeStatus: (state) => (nodeId) => state.results.get(nodeId)?.status || 'pending',
-    hasBreakpoint: (state) => (nodeId) => state.breakpoints.has(nodeId),
+    getNodeResult: (state) => (nodeId) => state.results[nodeId],
+    getNodeStatus: (state) => (nodeId) => state.results[nodeId]?.status || 'pending',
+    hasBreakpoint: (state) => (nodeId) => state.breakpoints.includes(nodeId),
     isDebugging: (state) => state.mode === 'debug' || state.mode === 'step',
     canContinue: (state) => state.globalStatus === 'paused',
     isRunning: (state) => state.globalStatus === 'running',
@@ -61,7 +61,7 @@ export const useExecutionStore = defineStore('execution', {
     },
 
     setNodeResult(result) {
-      this.results.set(result.nodeId, result)
+      this.results[result.nodeId] = result
       this.executionHistory.push(result)
       if (result.status === 'completed' || result.status === 'error') {
         this.progress.completed++
@@ -70,7 +70,7 @@ export const useExecutionStore = defineStore('execution', {
     },
 
     clearResults() {
-      this.results.clear()
+      this.results = {}
       this.executionHistory = []
       this.currentNodeId = null
       this.progress = { total: 0, completed: 0, percentage: 0 }
@@ -78,58 +78,23 @@ export const useExecutionStore = defineStore('execution', {
     },
 
     addBreakpoint(nodeId) {
-      this.breakpoints.add(nodeId)
+      if (!this.breakpoints.includes(nodeId)) this.breakpoints.push(nodeId)
     },
 
     removeBreakpoint(nodeId) {
-      this.breakpoints.delete(nodeId)
+      this.breakpoints = this.breakpoints.filter((id) => id !== nodeId)
     },
 
     toggleBreakpoint(nodeId) {
-      if (this.breakpoints.has(nodeId)) {
-        this.breakpoints.delete(nodeId)
+      if (this.breakpoints.includes(nodeId)) {
+        this.breakpoints = this.breakpoints.filter((id) => id !== nodeId)
       } else {
-        this.breakpoints.add(nodeId)
+        this.breakpoints.push(nodeId)
       }
     },
 
     clearBreakpoints() {
-      this.breakpoints.clear()
-    },
-
-    getExecutionOrder(nodes, edges) {
-      const inDegree = new Map()
-      const adjacency = new Map()
-
-      nodes.forEach((node) => {
-        inDegree.set(node.id, 0)
-        adjacency.set(node.id, [])
-      })
-
-      edges.forEach((edge) => {
-        adjacency.get(edge.source)?.push(edge.target)
-        inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1)
-      })
-
-      const queue = []
-      const result = []
-
-      inDegree.forEach((degree, nodeId) => {
-        if (degree === 0) queue.push(nodeId)
-      })
-
-      while (queue.length > 0) {
-        const nodeId = queue.shift()
-        result.push(nodeId)
-        const neighbors = adjacency.get(nodeId) || []
-        for (const neighbor of neighbors) {
-          const newDegree = (inDegree.get(neighbor) || 0) - 1
-          inDegree.set(neighbor, newDegree)
-          if (newDegree === 0) queue.push(neighbor)
-        }
-      }
-
-      return result
+      this.breakpoints = []
     },
   },
 })
