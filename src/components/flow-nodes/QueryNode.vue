@@ -32,38 +32,79 @@
 </template>
 
 <script setup>
-import { Handle, Position } from '@vue-flow/core'
-import { NodeResizer } from '@vue-flow/node-resizer'
-const props = defineProps({ data: Object, selected: Boolean })
-defineEmits(['run'])
-function getIcon() {
-  if (props.data.nodeType === 'query-condition') return '🔍'
-  if (props.data.nodeType === 'query-api') return '🌐'
-  if (props.data.nodeType === 'query-field') return '📌'
-  return '🔬'
-}
+  import { Handle, Position } from '@vue-flow/core'
+  import { NodeResizer } from '@vue-flow/node-resizer'
+  const props = defineProps({ data: Object, selected: Boolean })
+  defineEmits(['run'])
+  function getIcon() {
+    if (props.data.nodeType === 'query-condition') return '🔍'
+    if (props.data.nodeType === 'query-api') return '🌐'
+    if (props.data.nodeType === 'query-field') return '📌'
+    return '🔬'
+  }
 </script>
 
 <style scoped>
-.custom-node {
-  min-width: 120px; width: 100%; background: white; border: 2px solid #14b8a6;
-  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1);
-}
-.custom-node.selected { border-color: #0d9488; box-shadow: 0 4px 16px rgba(13,148,136,.3); }
-.node-header {
-  display: flex; align-items: center; padding: 10px 12px;
-  background: #14b8a6; color: white; font-weight: 600; border-radius: 6px 6px 0 0;
-}
-.node-icon { margin-right: 6px; font-size: 12px; }
-.node-title { font-size: 11px; flex: 1; }
-.run-btn {
-  background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
-  color: white; border-radius: 4px; padding: 2px 6px; font-size: 11px; cursor: pointer; margin-left: 6px;
-}
-.run-btn:hover { background: rgba(255,255,255,.35); }
-.node-content { padding: 10px 12px; }
-.query-info { display: flex; flex-direction: column; gap: 4px; }
-.info-item { display: flex; justify-content: space-between; font-size: 11px; }
-.info-item .label { color: #666; }
-.info-item .value { color: #333; font-weight: 500; }
+  .custom-node {
+    min-width: 120px;
+    width: 100%;
+    background: white;
+    border: 2px solid #14b8a6;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  .custom-node.selected {
+    border-color: #0d9488;
+    box-shadow: 0 4px 16px rgba(13, 148, 136, 0.3);
+  }
+  .node-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: #14b8a6;
+    color: white;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+  }
+  .node-icon {
+    margin-right: 6px;
+    font-size: 12px;
+  }
+  .node-title {
+    font-size: 11px;
+    flex: 1;
+  }
+  .run-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  .run-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .node-content {
+    padding: 10px 12px;
+  }
+  .query-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .info-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .info-item .label {
+    color: #666;
+  }
+  .info-item .value {
+    color: #333;
+    font-weight: 500;
+  }
 </style>

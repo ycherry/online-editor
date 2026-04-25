@@ -7,11 +7,11 @@ export const useDataSourceStore = defineStore('datasource', {
   }),
 
   getters: {
-    getDataSourceById: (state) => (id) => state.dataSources.find(ds => ds.id === id),
+    getDataSourceById: (state) => (id) => state.dataSources.find((ds) => ds.id === id),
     getAllDataSources: (state) => state.dataSources,
     getActiveDataSource: (state) => {
       if (!state.activeDataSourceId) return null
-      return state.dataSources.find(ds => ds.id === state.activeDataSourceId)
+      return state.dataSources.find((ds) => ds.id === state.activeDataSourceId)
     },
   },
 
@@ -28,7 +28,7 @@ export const useDataSourceStore = defineStore('datasource', {
     },
 
     removeDataSource(id) {
-      const index = this.dataSources.findIndex(ds => ds.id === id)
+      const index = this.dataSources.findIndex((ds) => ds.id === id)
       if (index !== -1) {
         this.dataSources.splice(index, 1)
         if (this.activeDataSourceId === id) {
@@ -38,7 +38,7 @@ export const useDataSourceStore = defineStore('datasource', {
     },
 
     setActiveDataSource(id) {
-      if (this.dataSources.find(ds => ds.id === id)) {
+      if (this.dataSources.find((ds) => ds.id === id)) {
         this.activeDataSourceId = id
       }
     },

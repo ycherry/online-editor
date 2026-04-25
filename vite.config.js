@@ -7,11 +7,11 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
-    }
+      '@': resolve(__dirname, 'src'),
+    },
   },
   server: {
     port: 3000,
-    open: true
-  }
+    open: true,
+  },
 })

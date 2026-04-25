@@ -65,9 +65,7 @@ export const useExecutionStore = defineStore('execution', {
       this.executionHistory.push(result)
       if (result.status === 'completed' || result.status === 'error') {
         this.progress.completed++
-        this.progress.percentage = Math.round(
-          (this.progress.completed / this.progress.total) * 100
-        )
+        this.progress.percentage = Math.round((this.progress.completed / this.progress.total) * 100)
       }
     },
 
@@ -103,12 +101,12 @@ export const useExecutionStore = defineStore('execution', {
       const inDegree = new Map()
       const adjacency = new Map()
 
-      nodes.forEach(node => {
+      nodes.forEach((node) => {
         inDegree.set(node.id, 0)
         adjacency.set(node.id, [])
       })
 
-      edges.forEach(edge => {
+      edges.forEach((edge) => {
         adjacency.get(edge.source)?.push(edge.target)
         inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1)
       })

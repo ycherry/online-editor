@@ -31,13 +31,13 @@ export function parseJSON(text) {
     throw new Error('JSON 文件必须包含数组数据')
   }
   if (Array.isArray(data[0])) {
-    return data.map(row => row.map(cell => String(cell)))
+    return data.map((row) => row.map((cell) => String(cell)))
   }
   if (typeof data[0] === 'object' && data[0] !== null) {
     const headers = Object.keys(data[0])
     const rows = [headers]
-    data.forEach(obj => {
-      rows.push(headers.map(h => String(obj[h] ?? '')))
+    data.forEach((obj) => {
+      rows.push(headers.map((h) => String(obj[h] ?? '')))
     })
     return rows
   }
@@ -63,12 +63,16 @@ export function readFileAsText(file) {
 
 export function downloadCSV(data, filename) {
   if (!Array.isArray(data) || data.length === 0) return
-  const csv = data.map(row =>
-    row.map(cell => {
-      const s = String(cell ?? '')
-      return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
-    }).join(',')
-  ).join('\n')
+  const csv = data
+    .map((row) =>
+      row
+        .map((cell) => {
+          const s = String(cell ?? '')
+          return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s
+        })
+        .join(',')
+    )
+    .join('\n')
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

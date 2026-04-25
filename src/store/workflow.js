@@ -7,7 +7,7 @@ export const useWorkflowStore = defineStore('workflow', {
   }),
 
   getters: {
-    getWorkflowById: (state) => (id) => state.workflows.find(w => w.id === id),
+    getWorkflowById: (state) => (id) => state.workflows.find((w) => w.id === id),
     getAllWorkflows: (state) => state.workflows,
     getCurrentWorkflow: (state) => state.currentWorkflow,
   },
@@ -35,7 +35,8 @@ export const useWorkflowStore = defineStore('workflow', {
      * @param {object} backendData  - { streamId, nodeId, nodes[] }
      */
     createWorkflow(name, description, backendData) {
-      const streamId = backendData.streamId || `wf_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      const streamId =
+        backendData.streamId || `wf_${Date.now()}_${Math.random().toString(36).substring(7)}`
       const workflow = {
         id: streamId,
         streamId,
@@ -58,12 +59,12 @@ export const useWorkflowStore = defineStore('workflow', {
      * @param {object} updates - may include { name, description, streamId, nodeId, nodes[] }
      */
     updateWorkflow(id, updates) {
-      const index = this.workflows.findIndex(w => w.id === id)
+      const index = this.workflows.findIndex((w) => w.id === id)
       if (index !== -1) {
         this.workflows[index] = {
           ...this.workflows[index],
           ...updates,
-          id,                                    // keep original id stable
+          id, // keep original id stable
           updatedAt: new Date().toISOString(),
         }
         if (this.currentWorkflow?.id === id) {
@@ -74,7 +75,7 @@ export const useWorkflowStore = defineStore('workflow', {
     },
 
     deleteWorkflow(id) {
-      const index = this.workflows.findIndex(w => w.id === id)
+      const index = this.workflows.findIndex((w) => w.id === id)
       if (index !== -1) {
         this.workflows.splice(index, 1)
         if (this.currentWorkflow?.id === id) {
@@ -89,4 +90,3 @@ export const useWorkflowStore = defineStore('workflow', {
     },
   },
 })
-

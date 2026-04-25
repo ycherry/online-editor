@@ -18,31 +18,71 @@
 </template>
 
 <script setup>
-import { Handle, Position } from '@vue-flow/core'
-import { NodeResizer } from '@vue-flow/node-resizer'
-defineProps({ data: Object, selected: Boolean })
-defineEmits(['run'])
+  import { Handle, Position } from '@vue-flow/core'
+  import { NodeResizer } from '@vue-flow/node-resizer'
+  defineProps({ data: Object, selected: Boolean })
+  defineEmits(['run'])
 </script>
 
 <style scoped>
-.custom-node {
-  min-width: 120px; width: 100%; background: white; border: 2px solid #8b5cf6;
-  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1);
-}
-.custom-node.selected { border-color: #7c3aed; box-shadow: 0 4px 16px rgba(124,58,237,.3); }
-.node-header {
-  display: flex; align-items: center; padding: 10px 12px;
-  background: #8b5cf6; color: white; font-weight: 600; border-radius: 6px 6px 0 0;
-}
-.node-icon { margin-right: 6px; font-size: 12px; }
-.node-title { font-size: 11px; flex: 1; }
-.run-btn {
-  background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
-  color: white; border-radius: 4px; padding: 2px 6px; font-size: 11px; cursor: pointer; margin-left: 6px;
-}
-.run-btn:hover { background: rgba(255,255,255,.35); }
-.node-content { padding: 10px 12px; }
-.operator-display { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.operator { font-size: 16px; font-weight: bold; color: #8b5cf6; }
-.params-info { font-size: 11px; color: #666; }
+  .custom-node {
+    min-width: 120px;
+    width: 100%;
+    background: white;
+    border: 2px solid #8b5cf6;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  .custom-node.selected {
+    border-color: #7c3aed;
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+  }
+  .node-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: #8b5cf6;
+    color: white;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+  }
+  .node-icon {
+    margin-right: 6px;
+    font-size: 12px;
+  }
+  .node-title {
+    font-size: 11px;
+    flex: 1;
+  }
+  .run-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  .run-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .node-content {
+    padding: 10px 12px;
+  }
+  .operator-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .operator {
+    font-size: 16px;
+    font-weight: bold;
+    color: #8b5cf6;
+  }
+  .params-info {
+    font-size: 11px;
+    color: #666;
+  }
 </style>

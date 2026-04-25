@@ -16,60 +16,60 @@
 
 /** Editor nodeType → backend type */
 const EDITOR_TO_BACKEND = {
-  'etl-input':          'source',
-  'data':               'source',
-  'etl-output':         'excel',
-  'output-excel':       'excel',
-  'etl-join':           'join',
-  'etl-union':          'union',
-  'etl-group':          'group',
-  'etl-filter':         'dbFilter',
-  'query-filter':       'dbSelect',
-  'etl-field':          'fieldMapping',
-  'etl-pivot':          'pivot',
-  'etl-dedup':          'dedup',
-  'logic-if':           'if',
-  'calculation':        'calc',
-  'comparison':         'compare',
-  'dbSelect':           'dbSelect',
+  'etl-input': 'source',
+  data: 'source',
+  'etl-output': 'excel',
+  'output-excel': 'excel',
+  'etl-join': 'join',
+  'etl-union': 'union',
+  'etl-group': 'group',
+  'etl-filter': 'dbFilter',
+  'query-filter': 'dbSelect',
+  'etl-field': 'fieldMapping',
+  'etl-pivot': 'pivot',
+  'etl-dedup': 'dedup',
+  'logic-if': 'if',
+  calculation: 'calc',
+  comparison: 'compare',
+  dbSelect: 'dbSelect',
   // processing-extreme handled separately (method: max|min)
 }
 
 /** Backend type → editor nodeType */
 const BACKEND_TO_EDITOR = {
-  'source':       'etl-input',
-  'excel':        'etl-output',
-  'join':         'etl-join',
-  'union':        'etl-union',
-  'group':        'etl-group',
-  'dbFilter':     'etl-filter',
-  'fieldMapping': 'etl-field',
-  'pivot':        'etl-pivot',
-  'dedup':        'etl-dedup',
-  'max':          'processing-extreme',
-  'min':          'processing-extreme',
-  'if':           'logic-if',
-  'calc':         'calculation',
-  'compare':      'comparison',
-  'dbSelect':     'query-filter',
+  source: 'etl-input',
+  excel: 'etl-output',
+  join: 'etl-join',
+  union: 'etl-union',
+  group: 'etl-group',
+  dbFilter: 'etl-filter',
+  fieldMapping: 'etl-field',
+  pivot: 'etl-pivot',
+  dedup: 'etl-dedup',
+  max: 'processing-extreme',
+  min: 'processing-extreme',
+  if: 'logic-if',
+  calc: 'calculation',
+  compare: 'comparison',
+  dbSelect: 'query-filter',
 }
 
 /** Color meta for re-hydrated nodes */
 const EDITOR_TYPE_COLOR = {
-  'etl-input':          '#4a90e2',
-  'etl-output':         '#22c55e',
-  'etl-join':           '#3b82f6',
-  'etl-union':          '#6366f1',
-  'etl-group':          '#f59e0b',
-  'etl-filter':         '#14b8a6',
-  'etl-field':          '#8b5cf6',
-  'etl-pivot':          '#ec4899',
-  'etl-dedup':          '#64748b',
+  'etl-input': '#4a90e2',
+  'etl-output': '#22c55e',
+  'etl-join': '#3b82f6',
+  'etl-union': '#6366f1',
+  'etl-group': '#f59e0b',
+  'etl-filter': '#14b8a6',
+  'etl-field': '#8b5cf6',
+  'etl-pivot': '#ec4899',
+  'etl-dedup': '#64748b',
   'processing-extreme': '#6366f1',
-  'logic-if':           '#10b981',
-  'calculation':        '#8b5cf6',
-  'comparison':         '#ef4444',
-  'query-filter':       '#14b8a6',
+  'logic-if': '#10b981',
+  calculation: '#8b5cf6',
+  comparison: '#ef4444',
+  'query-filter': '#14b8a6',
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ function buildBackendFields(backendType, config = {}) {
     case 'dbFilter': {
       const out = {}
       if (config.defaultFilter != null) out.defaultFilter = config.defaultFilter
-      if (config.dbFilter != null)      out.dbFilter = config.dbFilter
+      if (config.dbFilter != null) out.dbFilter = config.dbFilter
       return out
     }
     case 'max':
@@ -116,18 +116,17 @@ function buildBackendFields(backendType, config = {}) {
 /** Find the output/sink node id (excel or no outgoing edges) */
 function findOutputNodeId(nodes, edges) {
   const outputEditorTypes = new Set(['etl-output', 'output-excel'])
-  const hasOutgoing = new Set(edges.map(e => e.source))
+  const hasOutgoing = new Set(edges.map((e) => e.source))
 
   // Prefer an explicit output node
-  const outputNode = nodes.find(n => {
+  const outputNode = nodes.find((n) => {
     const nt = n.data?.nodeType || n.type
-    return outputEditorTypes.has(nt) ||
-           EDITOR_TO_BACKEND[nt] === 'excel'
+    return outputEditorTypes.has(nt) || EDITOR_TO_BACKEND[nt] === 'excel'
   })
   if (outputNode) return outputNode.id
 
   // Fallback: sink node (no outgoing edges)
-  const sink = nodes.find(n => !hasOutgoing.has(n.id))
+  const sink = nodes.find((n) => !hasOutgoing.has(n.id))
   return sink?.id || nodes[nodes.length - 1]?.id || ''
 }
 
@@ -142,9 +141,7 @@ export function serializeNode(node, edges) {
   const bType = toBackendType(nt, config)
 
   // input = IDs of nodes that have edges pointing to this node
-  const input = edges
-    .filter(e => e.target === node.id)
-    .map(e => e.source)
+  const input = edges.filter((e) => e.target === node.id).map((e) => e.source)
 
   const result = {
     id: node.id,
@@ -165,7 +162,7 @@ export function serializeNode(node, edges) {
  * Walks edges backwards via BFS.
  */
 export function collectAncestors(nodes, edges, targetNodeId) {
-  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
   const visited = new Set()
   const queue = [targetNodeId]
   while (queue.length) {
@@ -173,10 +170,12 @@ export function collectAncestors(nodes, edges, targetNodeId) {
     if (visited.has(id)) continue
     visited.add(id)
     edges
-      .filter(e => e.target === id)
-      .forEach(e => { if (!visited.has(e.source)) queue.push(e.source) })
+      .filter((e) => e.target === id)
+      .forEach((e) => {
+        if (!visited.has(e.source)) queue.push(e.source)
+      })
   }
-  return [...visited].map(id => nodeMap.get(id)).filter(Boolean)
+  return [...visited].map((id) => nodeMap.get(id)).filter(Boolean)
 }
 
 /**
@@ -191,12 +190,12 @@ export function collectAncestors(nodes, edges, targetNodeId) {
  */
 export function serializeUpToNode(nodes, edges, targetNodeId, streamId = '') {
   const subNodes = collectAncestors(nodes, edges, targetNodeId)
-  const subNodeIds = new Set(subNodes.map(n => n.id))
-  const subEdges = edges.filter(e => subNodeIds.has(e.source) && subNodeIds.has(e.target))
+  const subNodeIds = new Set(subNodes.map((n) => n.id))
+  const subEdges = edges.filter((e) => subNodeIds.has(e.source) && subNodeIds.has(e.target))
   return {
     streamId,
     nodeId: targetNodeId,
-    nodes: subNodes.map(n => serializeNode(n, subEdges)),
+    nodes: subNodes.map((n) => serializeNode(n, subEdges)),
   }
 }
 
@@ -212,7 +211,7 @@ export function serializeWorkflow(nodes, edges, streamId = '') {
   return {
     streamId,
     nodeId: findOutputNodeId(nodes, edges),
-    nodes: nodes.map(n => serializeNode(n, edges)),
+    nodes: nodes.map((n) => serializeNode(n, edges)),
   }
 }
 
@@ -249,9 +248,9 @@ export function deserializeWorkflow(data) {
 
   // Rebuild edges from input arrays
   const edges = []
-  data.nodes.forEach(n => {
+  data.nodes.forEach((n) => {
     if (!Array.isArray(n.input)) return
-    n.input.forEach(sourceId => {
+    n.input.forEach((sourceId) => {
       edges.push({
         id: `edge-${sourceId}-${n.id}`,
         source: sourceId,

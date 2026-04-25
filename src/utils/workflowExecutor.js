@@ -68,7 +68,7 @@ export class WorkflowExecutor {
   }
 
   async executeNode(nodeId) {
-    const node = this.nodes.find(n => n.id === nodeId)
+    const node = this.nodes.find((n) => n.id === nodeId)
     if (!node) throw new Error(`节点 ${nodeId} 不存在`)
 
     const startTime = Date.now()
@@ -81,21 +81,31 @@ export class WorkflowExecutor {
       this.nodeResults.set(nodeId, output)
       const endTime = Date.now()
       this.executionStore.setNodeResult({
-        nodeId, status: 'completed', output, startTime, endTime, duration: endTime - startTime,
+        nodeId,
+        status: 'completed',
+        output,
+        startTime,
+        endTime,
+        duration: endTime - startTime,
       })
     } catch (error) {
       const endTime = Date.now()
       this.executionStore.setNodeResult({
-        nodeId, status: 'error', output: null,
-        error: error.message || '执行出错', startTime, endTime, duration: endTime - startTime,
+        nodeId,
+        status: 'error',
+        output: null,
+        error: error.message || '执行出错',
+        startTime,
+        endTime,
+        duration: endTime - startTime,
       })
       throw error
     }
   }
 
   getNodeInputs(nodeId) {
-    const incomingEdges = this.edges.filter(e => e.target === nodeId)
-    return incomingEdges.map(edge => this.nodeResults.get(edge.source))
+    const incomingEdges = this.edges.filter((e) => e.target === nodeId)
+    return incomingEdges.map((edge) => this.nodeResults.get(edge.source))
   }
 
   async executeNodeByType(node, inputs) {
@@ -103,31 +113,36 @@ export class WorkflowExecutor {
     const data = { ...node.data, ...(node.data.config || {}) }
 
     // ── ETL node handlers ──
-    if (nodeType === 'etl-input')  return this.executeDataNode(data)
+    if (nodeType === 'etl-input') return this.executeDataNode(data)
     if (nodeType === 'etl-output') return this.executeEtlOutputNode(data, inputs)
-    if (nodeType === 'etl-join')   return this.executeEtlJoinNode(data, inputs)
-    if (nodeType === 'etl-union')  return this.executeEtlUnionNode(data, inputs)
-    if (nodeType === 'etl-group')  return this.executeEtlGroupNode(data, inputs)
+    if (nodeType === 'etl-join') return this.executeEtlJoinNode(data, inputs)
+    if (nodeType === 'etl-union') return this.executeEtlUnionNode(data, inputs)
+    if (nodeType === 'etl-group') return this.executeEtlGroupNode(data, inputs)
     if (nodeType === 'etl-filter') return this.executeEtlFilterNode(data, inputs)
-    if (nodeType === 'etl-field')  return this.executeEtlFieldNode(data, inputs)
-    if (nodeType === 'etl-pivot')  return inputs[0]
-    if (nodeType === 'etl-dedup')  return this.executeEtlDedupNode(data, inputs)
+    if (nodeType === 'etl-field') return this.executeEtlFieldNode(data, inputs)
+    if (nodeType === 'etl-pivot') return inputs[0]
+    if (nodeType === 'etl-dedup') return this.executeEtlDedupNode(data, inputs)
 
     if (nodeType.includes('data')) return this.executeDataNode(data)
     if (nodeType === 'logic-if') return this.executeLogicIfNode(data, inputs)
-    if (nodeType.includes('logic-and')) return inputs.every(i => Boolean(i))
-    if (nodeType.includes('logic-or')) return inputs.some(i => Boolean(i))
-    if (nodeType.includes('logic-nor')) return !inputs.some(i => Boolean(i))
-    if (nodeType.includes('condition-belongs')) return this.executeConditionBelongsNode(data, inputs)
-    if (nodeType.includes('condition-compare')) return this.executeConditionCompareNode(data, inputs)
+    if (nodeType.includes('logic-and')) return inputs.every((i) => Boolean(i))
+    if (nodeType.includes('logic-or')) return inputs.some((i) => Boolean(i))
+    if (nodeType.includes('logic-nor')) return !inputs.some((i) => Boolean(i))
+    if (nodeType.includes('condition-belongs'))
+      return this.executeConditionBelongsNode(data, inputs)
+    if (nodeType.includes('condition-compare'))
+      return this.executeConditionCompareNode(data, inputs)
     if (nodeType.includes('calculation')) return this.executeCalculationNode(data, inputs)
     if (nodeType.includes('query-api')) return this.executeQueryApiNode(data, inputs)
     if (nodeType.includes('query-field')) return this.executeQueryFieldNode(data, inputs)
     if (nodeType.includes('query-filter')) return this.executeQueryFilterNode(data, inputs)
     if (nodeType.includes('query-condition')) return this.executeQueryConditionNode(data, inputs)
-    if (nodeType.includes('processing-extreme')) return this.executeProcessingExtremeNode(data, inputs)
-    if (nodeType.includes('processing-average')) return this.executeProcessingAverageNode(data, inputs)
-    if (nodeType.includes('processing-interpolation')) return this.executeProcessingInterpolationNode(data, inputs)
+    if (nodeType.includes('processing-extreme'))
+      return this.executeProcessingExtremeNode(data, inputs)
+    if (nodeType.includes('processing-average'))
+      return this.executeProcessingAverageNode(data, inputs)
+    if (nodeType.includes('processing-interpolation'))
+      return this.executeProcessingInterpolationNode(data, inputs)
     if (nodeType.includes('processing-price')) return inputs[0]
     if (nodeType.includes('container-list')) return this.executeContainerListNode(data)
     if (nodeType.includes('container-dict')) return this.executeContainerDictNode(data)
@@ -145,7 +160,8 @@ export class WorkflowExecutor {
   executeEtlJoinNode(data, inputs) {
     const left = inputs[0]
     const right = inputs[1]
-    if (!Array.isArray(left) || !Array.isArray(right)) throw new Error('横向连接节点需要两个数据输入')
+    if (!Array.isArray(left) || !Array.isArray(right))
+      throw new Error('横向连接节点需要两个数据输入')
     if (left.length === 0) return []
 
     const mappings = data.fieldMappings || []
@@ -154,20 +170,20 @@ export class WorkflowExecutor {
     const joinType = data.joinType || 'left'
     const rightIndex = new Map()
     for (const row of right) {
-      const key = mappings.map(m => String(row[m.rightField] ?? '')).join('|')
+      const key = mappings.map((m) => String(row[m.rightField] ?? '')).join('|')
       if (!rightIndex.has(key)) rightIndex.set(key, [])
       rightIndex.get(key).push(row)
     }
 
     const result = []
     for (const lRow of left) {
-      const key = mappings.map(m => String(lRow[m.leftField] ?? '')).join('|')
+      const key = mappings.map((m) => String(lRow[m.leftField] ?? '')).join('|')
       const matches = rightIndex.get(key)
       if (matches && matches.length > 0) {
         for (const rRow of matches) {
           const merged = { ...lRow }
           for (const [k, v] of Object.entries(rRow)) {
-            if (data.mergeJoinFields && mappings.some(m => m.rightField === k)) continue
+            if (data.mergeJoinFields && mappings.some((m) => m.rightField === k)) continue
             merged[k] = v
           }
           result.push(merged)
@@ -178,9 +194,9 @@ export class WorkflowExecutor {
     }
     if (joinType === 'right' || joinType === 'full') {
       for (const rRow of right) {
-        const key = mappings.map(m => String(rRow[m.rightField] ?? '')).join('|')
-        const isMatched = left.some(lRow =>
-          mappings.map(m => String(lRow[m.leftField] ?? '')).join('|') === key
+        const key = mappings.map((m) => String(rRow[m.rightField] ?? '')).join('|')
+        const isMatched = left.some(
+          (lRow) => mappings.map((m) => String(lRow[m.leftField] ?? '')).join('|') === key
         )
         if (!isMatched) result.push({ ...rRow })
       }
@@ -192,10 +208,11 @@ export class WorkflowExecutor {
     const all = inputs.filter(Array.isArray).flat()
     if (data.unionType === 'distinct') {
       const seen = new Set()
-      return all.filter(row => {
+      return all.filter((row) => {
         const key = JSON.stringify(row)
         if (seen.has(key)) return false
-        seen.add(key); return true
+        seen.add(key)
+        return true
       })
     }
     return all
@@ -208,7 +225,7 @@ export class WorkflowExecutor {
     const aggregations = data.aggregations || []
     const groups = new Map()
     for (const row of rows) {
-      const key = groupFields.map(f => String(row[f] ?? '')).join('|')
+      const key = groupFields.map((f) => String(row[f] ?? '')).join('|')
       if (!groups.has(key)) groups.set(key, { key, rows: [] })
       groups.get(key).rows.push(row)
     }
@@ -216,15 +233,26 @@ export class WorkflowExecutor {
       const result = {}
       for (const f of groupFields) result[f] = groupRows[0][f]
       for (const agg of aggregations) {
-        const vals = groupRows.map(r => Number(r[agg.field]) || 0)
+        const vals = groupRows.map((r) => Number(r[agg.field]) || 0)
         const alias = agg.alias || `${agg.func}(${agg.field})`
         switch (agg.func) {
-          case 'sum':   result[alias] = vals.reduce((a, b) => a + b, 0); break
-          case 'count': result[alias] = groupRows.length; break
-          case 'avg':   result[alias] = vals.reduce((a, b) => a + b, 0) / vals.length; break
-          case 'max':   result[alias] = Math.max(...vals); break
-          case 'min':   result[alias] = Math.min(...vals); break
-          default:      result[alias] = vals.reduce((a, b) => a + b, 0)
+          case 'sum':
+            result[alias] = vals.reduce((a, b) => a + b, 0)
+            break
+          case 'count':
+            result[alias] = groupRows.length
+            break
+          case 'avg':
+            result[alias] = vals.reduce((a, b) => a + b, 0) / vals.length
+            break
+          case 'max':
+            result[alias] = Math.max(...vals)
+            break
+          case 'min':
+            result[alias] = Math.min(...vals)
+            break
+          default:
+            result[alias] = vals.reduce((a, b) => a + b, 0)
         }
       }
       return result
@@ -236,7 +264,7 @@ export class WorkflowExecutor {
     if (!Array.isArray(rows) || rows.length === 0) return []
     const conditions = data.conditions || []
     if (conditions.length === 0) return rows
-    return rows.filter(row => {
+    return rows.filter((row) => {
       let match = this._evalEtlCondition(row, conditions[0])
       for (let i = 1; i < conditions.length; i++) {
         const next = this._evalEtlCondition(row, conditions[i])
@@ -250,26 +278,37 @@ export class WorkflowExecutor {
     const val = row[cond.field]
     const target = cond.value
     switch (cond.operator) {
-      case 'eq':         return String(val ?? '') === String(target ?? '')
-      case 'ne':         return String(val ?? '') !== String(target ?? '')
-      case 'gt':         return Number(val) > Number(target)
-      case 'lt':         return Number(val) < Number(target)
-      case 'gte':        return Number(val) >= Number(target)
-      case 'lte':        return Number(val) <= Number(target)
-      case 'contains':   return String(val ?? '').includes(String(target ?? ''))
-      case 'notContains':return !String(val ?? '').includes(String(target ?? ''))
-      case 'empty':      return val === null || val === undefined || val === ''
-      case 'notEmpty':   return val !== null && val !== undefined && val !== ''
-      default:           return true
+      case 'eq':
+        return String(val ?? '') === String(target ?? '')
+      case 'ne':
+        return String(val ?? '') !== String(target ?? '')
+      case 'gt':
+        return Number(val) > Number(target)
+      case 'lt':
+        return Number(val) < Number(target)
+      case 'gte':
+        return Number(val) >= Number(target)
+      case 'lte':
+        return Number(val) <= Number(target)
+      case 'contains':
+        return String(val ?? '').includes(String(target ?? ''))
+      case 'notContains':
+        return !String(val ?? '').includes(String(target ?? ''))
+      case 'empty':
+        return val === null || val === undefined || val === ''
+      case 'notEmpty':
+        return val !== null && val !== undefined && val !== ''
+      default:
+        return true
     }
   }
 
   executeEtlFieldNode(data, inputs) {
     const rows = inputs[0]
     if (!Array.isArray(rows) || rows.length === 0) return []
-    const fields = (data.fields || []).filter(f => f.keep !== false && f.source)
+    const fields = (data.fields || []).filter((f) => f.keep !== false && f.source)
     if (fields.length === 0) return rows
-    return rows.map(row => {
+    return rows.map((row) => {
       const result = {}
       for (const f of fields) {
         const key = f.alias || f.source
@@ -287,10 +326,12 @@ export class WorkflowExecutor {
     const result = []
     const allRows = data.keepRecord === 'last' ? [...rows].reverse() : rows
     for (const row of allRows) {
-      const key = fields.length > 0
-        ? fields.map(f => String(row[f] ?? '')).join('|')
-        : JSON.stringify(row)
-      if (!seen.has(key)) { seen.add(key); result.push(row) }
+      const key =
+        fields.length > 0 ? fields.map((f) => String(row[f] ?? '')).join('|') : JSON.stringify(row)
+      if (!seen.has(key)) {
+        seen.add(key)
+        result.push(row)
+      }
     }
     return data.keepRecord === 'last' ? result.reverse() : result
   }
@@ -315,10 +356,10 @@ export class WorkflowExecutor {
     // Try each IF / ELSE IF branch in order; return first non-empty match
     for (const branch of conditions) {
       if (!branch.rules || branch.rules.length === 0) continue
-      let filtered = rows.filter(row => this._evalIfRules(headers, row, branch.rules))
+      let filtered = rows.filter((row) => this._evalIfRules(headers, row, branch.rules))
       // apply sub-conditions if configured (fields from a second source)
-      if (branch.subRules && branch.subRules.length > 0 && branch.subRules.some(r => r.field)) {
-        filtered = filtered.filter(row => this._evalIfRules(headers, row, branch.subRules))
+      if (branch.subRules && branch.subRules.length > 0 && branch.subRules.some((r) => r.field)) {
+        filtered = filtered.filter((row) => this._evalIfRules(headers, row, branch.subRules))
       }
       if (filtered.length > 0) return [headers, ...filtered]
     }
@@ -334,12 +375,12 @@ export class WorkflowExecutor {
       }
       let elseRows = rows.filter((_, i) => !matchedSet.has(i))
       const elseRules = data.elseBranch?.rules
-      if (elseRules && elseRules.length > 0 && elseRules.some(r => r.field)) {
-        elseRows = elseRows.filter(row => this._evalIfRules(headers, row, elseRules))
+      if (elseRules && elseRules.length > 0 && elseRules.some((r) => r.field)) {
+        elseRows = elseRows.filter((row) => this._evalIfRules(headers, row, elseRules))
       }
       const elseSubRules = data.elseBranch?.subRules
-      if (elseSubRules && elseSubRules.length > 0 && elseSubRules.some(r => r.field)) {
-        elseRows = elseRows.filter(row => this._evalIfRules(headers, row, elseSubRules))
+      if (elseSubRules && elseSubRules.length > 0 && elseSubRules.some((r) => r.field)) {
+        elseRows = elseRows.filter((row) => this._evalIfRules(headers, row, elseSubRules))
       }
       return [headers, ...elseRows]
     }
@@ -358,23 +399,39 @@ export class WorkflowExecutor {
   }
 
   _evalIfRule(headers, row, rule) {
-    const fieldIndex = headers.findIndex(h => h === String(rule.field || '').trim())
+    const fieldIndex = headers.findIndex((h) => h === String(rule.field || '').trim())
     if (fieldIndex === -1) return false
     const cell = String(row[fieldIndex] ?? '').trim()
     const target = String(rule.value ?? '').trim()
     switch (rule.operator) {
-      case '=': case '==': return cell === target
-      case '!=': return cell !== target
-      case '>': return Number(cell) > Number(target)
-      case '<': return Number(cell) < Number(target)
-      case '>=': return Number(cell) >= Number(target)
-      case '<=': return Number(cell) <= Number(target)
-      case 'contains': return cell.includes(target)
-      case 'not_contains': return !cell.includes(target)
-      case 'in': return target.split(',').map(s => s.trim()).includes(cell)
-      case 'startsWith': return cell.startsWith(target)
-      case 'endsWith': return cell.endsWith(target)
-      default: return false
+      case '=':
+      case '==':
+        return cell === target
+      case '!=':
+        return cell !== target
+      case '>':
+        return Number(cell) > Number(target)
+      case '<':
+        return Number(cell) < Number(target)
+      case '>=':
+        return Number(cell) >= Number(target)
+      case '<=':
+        return Number(cell) <= Number(target)
+      case 'contains':
+        return cell.includes(target)
+      case 'not_contains':
+        return !cell.includes(target)
+      case 'in':
+        return target
+          .split(',')
+          .map((s) => s.trim())
+          .includes(cell)
+      case 'startsWith':
+        return cell.startsWith(target)
+      case 'endsWith':
+        return cell.endsWith(target)
+      default:
+        return false
     }
   }
 
@@ -388,13 +445,20 @@ export class WorkflowExecutor {
   executeConditionCompareNode(data, inputs) {
     const [v1, v2] = inputs
     switch (data.operator) {
-      case '>': return v1 > v2
-      case '<': return v1 < v2
-      case '>=': return v1 >= v2
-      case '<=': return v1 <= v2
-      case '==': return v1 === v2
-      case '!=': return v1 !== v2
-      default: return false
+      case '>':
+        return v1 > v2
+      case '<':
+        return v1 < v2
+      case '>=':
+        return v1 >= v2
+      case '<=':
+        return v1 <= v2
+      case '==':
+        return v1 === v2
+      case '!=':
+        return v1 !== v2
+      default:
+        return false
     }
   }
 
@@ -404,13 +468,20 @@ export class WorkflowExecutor {
     return params.reduce((acc, val, idx) => {
       if (idx === 0) return val
       switch (data.operator) {
-        case '+': return acc + val
-        case '-': return acc - val
-        case '*': return acc * val
-        case '/': return val !== 0 ? acc / val : 0
-        case '%': return acc % val
-        case '**': return Math.pow(acc, val)
-        default: return acc
+        case '+':
+          return acc + val
+        case '-':
+          return acc - val
+        case '*':
+          return acc * val
+        case '/':
+          return val !== 0 ? acc / val : 0
+        case '%':
+          return acc % val
+        case '**':
+          return Math.pow(acc, val)
+        default:
+          return acc
       }
     })
   }
@@ -425,19 +496,27 @@ export class WorkflowExecutor {
     const match = condition.match(/^\s*(.+?)\s*(==|!=|>=|<=|>|<|contains)\s*["']?(.+?)["']?\s*$/)
     if (!match) return inputData
     const [, fieldName, operator, targetValue] = match
-    const fieldIndex = headers.findIndex(h => h === fieldName.trim())
+    const fieldIndex = headers.findIndex((h) => h === fieldName.trim())
     if (fieldIndex === -1) return inputData
-    const filteredRows = rows.filter(row => {
+    const filteredRows = rows.filter((row) => {
       const cellValue = String(row[fieldIndex] || '').trim()
       switch (operator) {
-        case '==': return cellValue === targetValue
-        case '!=': return cellValue !== targetValue
-        case '>': return Number(cellValue) > Number(targetValue)
-        case '<': return Number(cellValue) < Number(targetValue)
-        case '>=': return Number(cellValue) >= Number(targetValue)
-        case '<=': return Number(cellValue) <= Number(targetValue)
-        case 'contains': return cellValue.includes(targetValue)
-        default: return true
+        case '==':
+          return cellValue === targetValue
+        case '!=':
+          return cellValue !== targetValue
+        case '>':
+          return Number(cellValue) > Number(targetValue)
+        case '<':
+          return Number(cellValue) < Number(targetValue)
+        case '>=':
+          return Number(cellValue) >= Number(targetValue)
+        case '<=':
+          return Number(cellValue) <= Number(targetValue)
+        case 'contains':
+          return cellValue.includes(targetValue)
+        default:
+          return true
       }
     })
     return [headers, ...filteredRows]
@@ -449,17 +528,22 @@ export class WorkflowExecutor {
     const headers = inputData[0]
     const rows = inputData.slice(1)
     if (!data.field || !data.value) return inputData
-    const fieldIndex = headers.findIndex(h => h === data.field)
+    const fieldIndex = headers.findIndex((h) => h === data.field)
     if (fieldIndex === -1) return inputData
-    const filteredRows = rows.filter(row => {
+    const filteredRows = rows.filter((row) => {
       const cellValue = String(row[fieldIndex] || '').trim()
       const target = String(data.value).trim()
       switch (data.matchMode) {
-        case 'exact': return cellValue === target
-        case 'contains': return cellValue.includes(target)
-        case 'startsWith': return cellValue.startsWith(target)
-        case 'endsWith': return cellValue.endsWith(target)
-        default: return cellValue === target
+        case 'exact':
+          return cellValue === target
+        case 'contains':
+          return cellValue.includes(target)
+        case 'startsWith':
+          return cellValue.startsWith(target)
+        case 'endsWith':
+          return cellValue.endsWith(target)
+        default:
+          return cellValue === target
       }
     })
     return [headers, ...filteredRows]
@@ -470,28 +554,33 @@ export class WorkflowExecutor {
     let values = []
     if (Array.isArray(inputData)) {
       if (Array.isArray(inputData[0])) {
-        values = inputData.slice(1).flatMap(row => row.map(Number).filter(n => !isNaN(n)))
+        values = inputData.slice(1).flatMap((row) => row.map(Number).filter((n) => !isNaN(n)))
       } else {
-        values = inputData.map(Number).filter(n => !isNaN(n))
+        values = inputData.map(Number).filter((n) => !isNaN(n))
       }
     }
     if (values.length === 0) return null
     const sorted = [...values].sort((a, b) => a - b)
     switch (data.method) {
-      case 'max': return Math.max(...values)
-      case 'min': return Math.min(...values)
+      case 'max':
+        return Math.max(...values)
+      case 'min':
+        return Math.min(...values)
       case 'median': {
         const mid = Math.floor(sorted.length / 2)
         return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
       }
-      case 'second_low': return sorted.length >= 2 ? sorted[1] : sorted[0]
-      case 'second_high': return sorted.length >= 2 ? sorted[sorted.length - 2] : sorted[sorted.length - 1]
-      default: return Math.max(...values)
+      case 'second_low':
+        return sorted.length >= 2 ? sorted[1] : sorted[0]
+      case 'second_high':
+        return sorted.length >= 2 ? sorted[sorted.length - 2] : sorted[sorted.length - 1]
+      default:
+        return Math.max(...values)
     }
   }
 
   executeProcessingAverageNode(data, inputs) {
-    const values = (Array.isArray(inputs[0]) ? inputs[0] : []).map(Number).filter(n => !isNaN(n))
+    const values = (Array.isArray(inputs[0]) ? inputs[0] : []).map(Number).filter((n) => !isNaN(n))
     if (values.length === 0) return 0
     if (data.method === 'arithmetic') {
       return values.reduce((a, b) => a + b, 0) / values.length
@@ -512,13 +601,18 @@ export class WorkflowExecutor {
     if (Array.isArray(inputData[0])) {
       const headers = inputData[0]
       const rows = inputData.slice(1)
-      const result = rows.map(r => [...r])
+      const result = rows.map((r) => [...r])
       for (let col = 0; col < headers.length; col++) {
-        const colValues = rows.map(r => r[col])
-        const hasMissing = colValues.some(v => v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === ''))
+        const colValues = rows.map((r) => r[col])
+        const hasMissing = colValues.some(
+          (v) =>
+            v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === '')
+        )
         if (hasMissing) {
           const interpolated = this._interpolateValues(colValues, data.method)
-          interpolated.forEach((val, rowIdx) => { result[rowIdx][col] = val })
+          interpolated.forEach((val, rowIdx) => {
+            result[rowIdx][col] = val
+          })
         }
       }
       return [headers, ...result]
@@ -527,7 +621,7 @@ export class WorkflowExecutor {
   }
 
   _interpolateValues(values, method) {
-    const nums = values.map(v => {
+    const nums = values.map((v) => {
       if (v === null || v === undefined || v === '') return null
       const n = Number(v)
       return isNaN(n) ? null : n
@@ -535,12 +629,13 @@ export class WorkflowExecutor {
     if (method === 'nearest') {
       return nums.map((v, i) => {
         if (v !== null) return v
-        let left = i - 1, right = i + 1
+        let left = i - 1,
+          right = i + 1
         while (left >= 0 && nums[left] === null) left--
         while (right < nums.length && nums[right] === null) right++
         const hasLeft = left >= 0
         const hasRight = right < nums.length
-        if (hasLeft && hasRight) return (i - left) <= (right - i) ? nums[left] : nums[right]
+        if (hasLeft && hasRight) return i - left <= right - i ? nums[left] : nums[right]
         if (hasLeft) return nums[left]
         if (hasRight) return nums[right]
         return 0
@@ -548,9 +643,11 @@ export class WorkflowExecutor {
     }
     if (method === 'regression') {
       const known = []
-      nums.forEach((v, i) => { if (v !== null) known.push([i, v]) })
+      nums.forEach((v, i) => {
+        if (v !== null) known.push([i, v])
+      })
       if (known.length === 0) return nums.map(() => 0)
-      if (known.length === 1) return nums.map(v => (v !== null ? v : known[0][1]))
+      if (known.length === 1) return nums.map((v) => (v !== null ? v : known[0][1]))
       const n = known.length
       const sumX = known.reduce((s, [x]) => s + x, 0)
       const sumY = known.reduce((s, [, y]) => s + y, 0)
@@ -559,9 +656,9 @@ export class WorkflowExecutor {
       const denom = n * sumX2 - sumX * sumX
       const b = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0
       const a = (sumY - b * sumX) / n
-      return nums.map((v, i) => v !== null ? v : parseFloat((a + b * i).toFixed(4)))
+      return nums.map((v, i) => (v !== null ? v : parseFloat((a + b * i).toFixed(4))))
     }
-    return nums.map(v => (v !== null ? v : 0))
+    return nums.map((v) => (v !== null ? v : 0))
   }
 
   executeContainerListNode(data) {
@@ -570,7 +667,7 @@ export class WorkflowExecutor {
 
   executeContainerDictNode(data) {
     const dict = {}
-    for (const pair of (data.pairs || [])) {
+    for (const pair of data.pairs || []) {
       if (pair.key) dict[pair.key] = pair.value
     }
     return dict
@@ -601,20 +698,22 @@ export class WorkflowExecutor {
     const rows = inputData.slice(1)
 
     // Second input may be a scalar unit price (from calculation chain after query-api)
-    const externalUnitPrice = (inputs.length >= 2 && typeof inputs[1] === 'number' && !isNaN(inputs[1]))
-      ? inputs[1]
-      : null
+    const externalUnitPrice =
+      inputs.length >= 2 && typeof inputs[1] === 'number' && !isNaN(inputs[1]) ? inputs[1] : null
 
-    const unitPriceIdx = headers.findIndex(h => String(h).trim() === '单价')
-    const quantityIdx = headers.findIndex(h => String(h).trim() === '数量')
+    const unitPriceIdx = headers.findIndex((h) => String(h).trim() === '单价')
+    const quantityIdx = headers.findIndex((h) => String(h).trim() === '数量')
 
     const outputHeaders = [...headers, '合价']
 
-    const processedRows = rows.map(row => {
-      const unitPrice = externalUnitPrice !== null
-        ? externalUnitPrice
-        : (unitPriceIdx !== -1 ? (parseFloat(row[unitPriceIdx]) || 0) : 0)
-      const quantity = quantityIdx !== -1 ? (parseFloat(row[quantityIdx]) || 0) : 0
+    const processedRows = rows.map((row) => {
+      const unitPrice =
+        externalUnitPrice !== null
+          ? externalUnitPrice
+          : unitPriceIdx !== -1
+            ? parseFloat(row[unitPriceIdx]) || 0
+            : 0
+      const quantity = quantityIdx !== -1 ? parseFloat(row[quantityIdx]) || 0 : 0
       const total = parseFloat((unitPrice * quantity).toFixed(4))
       return [...row, total]
     })
@@ -640,11 +739,13 @@ export class WorkflowExecutor {
     // Build params from fieldMappings [{inputField, apiParam}]
     const firstRow = inputData[1]
     const rowObj = {}
-    headers.forEach((h, i) => { rowObj[h] = firstRow[i] })
+    headers.forEach((h, i) => {
+      rowObj[h] = firstRow[i]
+    })
 
     // Build params from fieldMappings [{inputField, apiParam}]
     const params = {}
-    for (const mapping of (data.fieldMappings || [])) {
+    for (const mapping of data.fieldMappings || []) {
       if (mapping.inputField && mapping.apiParam) {
         params[mapping.apiParam] = rowObj[mapping.inputField] ?? ''
       }
@@ -669,12 +770,12 @@ export class WorkflowExecutor {
     const headers = inputData[0]
     const rows = inputData.slice(1)
     const fieldName = (data.extractField || '').trim()
-    const colIdx = headers.findIndex(h => String(h).trim() === fieldName)
+    const colIdx = headers.findIndex((h) => String(h).trim() === fieldName)
     if (colIdx === -1) throw new Error(`字段提取节点：找不到列 "${fieldName}"`)
 
     if (data.extractFirst) {
       return parseFloat(rows[0]?.[colIdx]) || 0
     }
-    return rows.map(r => parseFloat(r[colIdx]) || 0)
+    return rows.map((r) => parseFloat(r[colIdx]) || 0)
   }
 }

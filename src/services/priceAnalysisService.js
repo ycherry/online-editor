@@ -7,6 +7,7 @@
 const PRICE_API_URL = import.meta.env.VITE_PRICE_API_URL || ''
 const PRICE_API_METHOD = (import.meta.env.VITE_PRICE_API_METHOD || 'POST').toUpperCase()
 const PRICE_API_RESPONSE_PATH = import.meta.env.VITE_PRICE_API_RESPONSE_PATH || ''
+const IF_NODE_CONFIG_URL = import.meta.env.VITE_IF_NODE_CONFIG_URL || '/api/if-node-config'
 
 // 缓存
 let _materialListCache = null
@@ -18,11 +19,14 @@ let _historyPriceCache = null
  * @returns {{ headers: string[], rows: object[] }}
  */
 function parseCSV(text) {
-  const lines = text.trim().split('\n').map(line => line.trimEnd())
+  const lines = text
+    .trim()
+    .split('\n')
+    .map((line) => line.trimEnd())
   if (lines.length === 0) return { headers: [], rows: [] }
 
   const headers = lines[0].split(',')
-  const rows = lines.slice(1).map(line => {
+  const rows = lines.slice(1).map((line) => {
     const values = line.split(',')
     const row = {}
     headers.forEach((header, index) => {
@@ -77,9 +81,7 @@ export async function getMaterialList() {
  */
 export async function getHistoryPrices(thirdCategory, itemName) {
   const { rows } = await loadHistoryPrice()
-  return rows.filter(
-    row => row['三级专业'] === thirdCategory && row['清单名称'] === itemName
-  )
+  return rows.filter((row) => row['三级专业'] === thirdCategory && row['清单名称'] === itemName)
 }
 
 /**
@@ -142,7 +144,10 @@ export async function queryBackendApi(url, params = {}, method = 'GET', response
   if (responsePath) {
     for (const key of responsePath.split('.')) {
       if (list && typeof list === 'object') list = list[key]
-      else { list = []; break }
+      else {
+        list = []
+        break
+      }
     }
   }
 
@@ -151,6 +156,50 @@ export async function queryBackendApi(url, params = {}, method = 'GET', response
   }
 
   const headers = Object.keys(list[0])
-  const rows = list.map(item => headers.map(h => item[h] ?? ''))
+  const rows = list.map((item) => headers.map((h) => item[h] ?? ''))
   return { headers, rows }
+}
+
+/**
+ * 获取 IF 判断节点的字段配置
+ * @param {string} stageId  节点 ID（如 stage_1776646597759）
+ * @returns {Promise<{ name: string, fields: Array<{id:string,text:string,type:string,dictCode?:string}>, childFields: Array<{id:string,text:string,type:string}> }>}
+ */
+export async function getIfNodeConfig(stageId) {
+  // -- API 调用（暂时注释，使用 mock 数据）--
+  // const response = await fetch(`${IF_NODE_CONFIG_URL}/${stageId}`)
+  // if (!response.ok) throw new Error(`获取IF节点配置失败: ${response.status}`)
+  // const json = await response.json()
+  // return json[stageId] ?? json
+
+  // 字段名 -> type 推断规则
+  const NUMBER_PATTERN = /数量|单价|金额|合价|安装费|材料费|其它|费用|价格|综合单价/
+  const DATE_PATTERN = /时间|日期/
+  const BOOL_PATTERN = /是否/
+
+  function inferType(fieldName) {
+    if (BOOL_PATTERN.test(fieldName)) return 'boolean'
+    if (DATE_PATTERN.test(fieldName)) return 'date'
+    if (NUMBER_PATTERN.test(fieldName)) return 'number'
+    return 'text'
+  }
+
+  const [{ headers: matHeaders }, { headers: hisHeaders }] = await Promise.all([
+    loadMaterialList(),
+    loadHistoryPrice(),
+  ])
+
+  const fields = matHeaders.map((h, i) => ({
+    id: String(i + 1),
+    text: h,
+    type: inferType(h),
+  }))
+
+  const childFields = hisHeaders.map((h, i) => ({
+    id: String(i + 1),
+    text: h,
+    type: inferType(h),
+  }))
+
+  return { name: 'if条件', fields, childFields }
 }

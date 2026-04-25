@@ -5,7 +5,7 @@ export const useUserStore = defineStore('user', () => {
   // 状态
   const userInfo = ref({
     name: '访客',
-    email: ''
+    email: '',
   })
   const isLoggedIn = ref(false)
 
@@ -23,7 +23,7 @@ export const useUserStore = defineStore('user', () => {
   function logout() {
     userInfo.value = {
       name: '访客',
-      email: ''
+      email: '',
     }
     isLoggedIn.value = false
   }
@@ -33,6 +33,6 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     displayName,
     setUserInfo,
-    logout
+    logout,
   }
 })

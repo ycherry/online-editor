@@ -5,13 +5,13 @@ const routes = [
     path: '/',
     name: 'Editor',
     component: () => import('@/pages/Editor.vue'),
-    meta: { title: '编辑器' }
-  }
+    meta: { title: '编辑器' },
+  },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 // 路由守卫

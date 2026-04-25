@@ -10,15 +10,29 @@
     </div>
     <div class="node-content">
       <div v-if="data.nodeType === 'logic-if'" class="logic-content">
-        <div v-for="(branch, idx) in (data.config?.conditions || [])" :key="idx" class="condition-item">
+        <div
+          v-for="(branch, idx) in data.config?.conditions || []"
+          :key="idx"
+          class="condition-item"
+        >
           <span class="condition-label">{{ idx === 0 ? 'IF' : `ELSE IF ${idx}` }}</span>
           <span class="condition-value">{{ summarizeBranch(branch) }}</span>
-          <span v-if="branch.subRules?.some(r => r.field)" class="sub-condition-value">↳ {{ summarizeBranch({ rules: branch.subRules }) }}</span>
+          <span v-if="branch.subRules?.some((r) => r.field)" class="sub-condition-value"
+            >↳ {{ summarizeBranch({ rules: branch.subRules }) }}</span
+          >
         </div>
         <div v-if="data.config?.hasElse" class="condition-item else-item">
           <span class="condition-label else-label">ELSE</span>
-          <span class="condition-value">{{ data.config.elseBranch?.rules?.some(r => r.field) ? summarizeBranch(data.config.elseBranch) : '兜底分支' }}</span>
-          <span v-if="data.config.elseBranch?.subRules?.some(r => r.field)" class="sub-condition-value">↳ {{ summarizeBranch({ rules: data.config.elseBranch.subRules }) }}</span>
+          <span class="condition-value">{{
+            data.config.elseBranch?.rules?.some((r) => r.field)
+              ? summarizeBranch(data.config.elseBranch)
+              : '兜底分支'
+          }}</span>
+          <span
+            v-if="data.config.elseBranch?.subRules?.some((r) => r.field)"
+            class="sub-condition-value"
+            >↳ {{ summarizeBranch({ rules: data.config.elseBranch.subRules }) }}</span
+          >
         </div>
         <div v-if="!data.config?.conditions?.length" class="empty-hint">点击配置条件</div>
       </div>
@@ -30,57 +44,124 @@
 </template>
 
 <script setup>
-import { Handle, Position } from '@vue-flow/core'
-import { NodeResizer } from '@vue-flow/node-resizer'
-const props = defineProps({ data: Object, selected: Boolean })
-defineEmits(['run'])
-function getIcon() {
-  switch (props.data.nodeType) {
-    case 'logic-if': return '🔀'
-    case 'logic-and': return '∧'
-    case 'logic-or': return '∨'
-    case 'logic-nor': return '⊽'
-    default: return '🔀'
+  import { Handle, Position } from '@vue-flow/core'
+  import { NodeResizer } from '@vue-flow/node-resizer'
+  const props = defineProps({ data: Object, selected: Boolean })
+  defineEmits(['run'])
+  function getIcon() {
+    switch (props.data.nodeType) {
+      case 'logic-if':
+        return '🔀'
+      case 'logic-and':
+        return '∧'
+      case 'logic-or':
+        return '∨'
+      case 'logic-nor':
+        return '⊽'
+      default:
+        return '🔀'
+    }
   }
-}
-function summarizeBranch(branch) {
-  if (!branch?.rules?.length) return '...'
-  return branch.rules.map((r, i) => {
-    const part = `${r.field || '?'} ${r.operator || '='} ${r.value !== '' ? r.value : '?'}`
-    if (i < branch.rules.length - 1) return `${part} ${r.logic === '||' ? 'OR' : 'AND'}`
-    return part
-  }).join(' ')
-}
+  function summarizeBranch(branch) {
+    if (!branch?.rules?.length) return '...'
+    return branch.rules
+      .map((r, i) => {
+        const part = `${r.field || '?'} ${r.operator || '='} ${r.value !== '' ? r.value : '?'}`
+        if (i < branch.rules.length - 1) return `${part} ${r.logic === '||' ? 'OR' : 'AND'}`
+        return part
+      })
+      .join(' ')
+  }
 </script>
 
 <style scoped>
-.custom-node {
-  min-width: 120px; width: 100%; background: white; border: 2px solid #10b981;
-  border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.1); transition: all .2s;
-}
-.custom-node.selected { border-color: #059669; box-shadow: 0 4px 16px rgba(5,150,105,.3); }
-.node-header {
-  display: flex; align-items: center; padding: 10px 12px;
-  background: #10b981; color: white; font-weight: 600; border-radius: 6px 6px 0 0;
-}
-.node-icon { margin-right: 6px; font-size: 12px; font-weight: bold; }
-.node-title { font-size: 11px; flex: 1; }
-.run-btn {
-  background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
-  color: white; border-radius: 4px; padding: 2px 6px; font-size: 11px; cursor: pointer; margin-left: 6px;
-}
-.run-btn:hover { background: rgba(255,255,255,.35); }
-.node-content { padding: 10px 12px; }
-.logic-content { min-height: 32px; }
-.condition-item {
-  display: flex; flex-direction: column; padding: 4px 6px;
-  background: #f0fdf4; border-radius: 4px; font-size: 11px; margin-bottom: 4px;
-}
-.condition-label { color: #10b981; font-weight: 600; margin-bottom: 2px; }
-.condition-value { color: #333; }
-.params-count { font-size: 12px; color: #666; }
-.empty-hint { font-size: 11px; color: #999; font-style: italic; }
-.else-item { background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; }
-.else-label { color: #d97706; }
-.sub-condition-value { font-size: 10px; color: #7c3aed; margin-top: 1px; }
+  .custom-node {
+    min-width: 120px;
+    width: 100%;
+    background: white;
+    border: 2px solid #10b981;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s;
+  }
+  .custom-node.selected {
+    border-color: #059669;
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+  }
+  .node-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background: #10b981;
+    color: white;
+    font-weight: 600;
+    border-radius: 6px 6px 0 0;
+  }
+  .node-icon {
+    margin-right: 6px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  .node-title {
+    font-size: 11px;
+    flex: 1;
+  }
+  .run-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  .run-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+  .node-content {
+    padding: 10px 12px;
+  }
+  .logic-content {
+    min-height: 32px;
+  }
+  .condition-item {
+    display: flex;
+    flex-direction: column;
+    padding: 4px 6px;
+    background: #f0fdf4;
+    border-radius: 4px;
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  .condition-label {
+    color: #10b981;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .condition-value {
+    color: #333;
+  }
+  .params-count {
+    font-size: 12px;
+    color: #666;
+  }
+  .empty-hint {
+    font-size: 11px;
+    color: #999;
+    font-style: italic;
+  }
+  .else-item {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 4px;
+  }
+  .else-label {
+    color: #d97706;
+  }
+  .sub-condition-value {
+    font-size: 10px;
+    color: #7c3aed;
+    margin-top: 1px;
+  }
 </style>

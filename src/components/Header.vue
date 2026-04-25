@@ -2,16 +2,8 @@
   <a-layout-header :style="{ background: '#fff', padding: 0 }">
     <div class="header-container">
       <div class="header-left">
-        <menu-unfold-outlined
-          v-if="collapsed"
-          class="trigger"
-          @click="toggleSidebar"
-        />
-        <menu-fold-outlined
-          v-else
-          class="trigger"
-          @click="toggleSidebar"
-        />
+        <menu-unfold-outlined v-if="collapsed" class="trigger" @click="toggleSidebar" />
+        <menu-fold-outlined v-else class="trigger" @click="toggleSidebar" />
         <span class="header-title">在线编辑器</span>
       </div>
       <div class="header-right">
@@ -39,64 +31,60 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { message } from 'ant-design-vue'
-import {
-  MenuUnfoldOutlined,
-  MenuFoldOutlined,
-  BellOutlined
-} from '@ant-design/icons-vue'
-import { useAppStore } from '@/store/app'
-import { useUserStore } from '@/store/user'
+  import { computed } from 'vue'
+  import { message } from 'ant-design-vue'
+  import { MenuUnfoldOutlined, MenuFoldOutlined, BellOutlined } from '@ant-design/icons-vue'
+  import { useAppStore } from '@/store/app'
+  import { useUserStore } from '@/store/user'
 
-const appStore = useAppStore()
-const userStore = useUserStore()
+  const appStore = useAppStore()
+  const userStore = useUserStore()
 
-const collapsed = computed(() => appStore.collapsed)
-const userInfo = computed(() => userStore.userInfo)
+  const collapsed = computed(() => appStore.collapsed)
+  const userInfo = computed(() => userStore.userInfo)
 
-const toggleSidebar = () => {
-  appStore.toggleSidebar()
-}
+  const toggleSidebar = () => {
+    appStore.toggleSidebar()
+  }
 
-const handleLogout = () => {
-  userStore.logout()
-  message.success('已退出登录')
-}
+  const handleLogout = () => {
+    userStore.logout()
+    message.success('已退出登录')
+  }
 </script>
 
 <style scoped>
-.header-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
-  height: 64px;
-}
+  .header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 24px;
+    height: 64px;
+  }
 
-.header-left {
-  display: flex;
-  align-items: center;
-}
+  .header-left {
+    display: flex;
+    align-items: center;
+  }
 
-.trigger {
-  font-size: 18px;
-  cursor: pointer;
-  transition: color 0.3s;
-}
+  .trigger {
+    font-size: 18px;
+    cursor: pointer;
+    transition: color 0.3s;
+  }
 
-.trigger:hover {
-  color: #1890ff;
-}
+  .trigger:hover {
+    color: #1890ff;
+  }
 
-.header-title {
-  margin-left: 16px;
-  font-size: 18px;
-  font-weight: 500;
-}
+  .header-title {
+    margin-left: 16px;
+    font-size: 18px;
+    font-weight: 500;
+  }
 
-.header-right {
-  display: flex;
-  align-items: center;
-}
+  .header-right {
+    display: flex;
+    align-items: center;
+  }
 </style>
