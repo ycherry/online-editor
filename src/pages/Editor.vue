@@ -244,6 +244,7 @@
                 :is="getConfigComponent(selectedNode.data.nodeType)"
                 v-model="selectedNode.data.config"
                 :node-id="selectedNode.id"
+                :node-type="selectedNode.data.nodeType"
                 @update:model-value="onNodeDataChange"
               />
             </div>
@@ -427,6 +428,7 @@
     calculation: { icon: '∑', color: '#8b5cf6', label: '运算' },
     'query-filter': { icon: '▽', color: '#14b8a6', label: '筛选器' },
     'processing-extreme': { icon: '↕', color: '#6366f1', label: '最值' },
+    'processing-average': { icon: '≈', color: '#0ea5e9', label: '均值' },
   }
 
   const selectedNodeMeta = computed(() => {
@@ -595,6 +597,13 @@
           icon: '↕',
           color: '#6366f1',
           defaultConfig: { method: 'max' },
+        },
+        {
+          type: 'processing-average',
+          label: '均值',
+          icon: '≈',
+          color: '#0ea5e9',
+          defaultConfig: { method: 'arithmetic' },
         },
       ],
     },

@@ -33,6 +33,7 @@ const EDITOR_TO_BACKEND = {
   comparison: 'compare',
   dbSelect: 'dbSelect',
   // processing-extreme handled separately (method: max|min)
+  // processing-average handled separately (method: arithmetic|weighted)
 }
 
 /** Backend type → editor nodeType */
@@ -48,6 +49,8 @@ const BACKEND_TO_EDITOR = {
   dedup: 'etl-dedup',
   max: 'processing-extreme',
   min: 'processing-extreme',
+  arithmetic_avg: 'processing-average',
+  weighted_avg: 'processing-average',
   if: 'logic-if',
   calc: 'calculation',
   compare: 'comparison',
@@ -66,6 +69,7 @@ const EDITOR_TYPE_COLOR = {
   'etl-pivot': '#ec4899',
   'etl-dedup': '#64748b',
   'processing-extreme': '#6366f1',
+  'processing-average': '#0ea5e9',
   'logic-if': '#10b981',
   calculation: '#8b5cf6',
   comparison: '#ef4444',
@@ -78,6 +82,9 @@ const EDITOR_TYPE_COLOR = {
 function toBackendType(editorType, config = {}) {
   if (editorType === 'processing-extreme') {
     return config.method === 'min' ? 'min' : 'max'
+  }
+  if (editorType === 'processing-average') {
+    return config.method === 'weighted' ? 'weighted_avg' : 'arithmetic_avg'
   }
   return EDITOR_TO_BACKEND[editorType] || editorType
 }
@@ -105,6 +112,13 @@ function buildBackendFields(backendType, config = {}) {
     case 'min':
       // type itself encodes the method; no extra fields needed
       return {}
+    case 'arithmetic_avg':
+    case 'weighted_avg': {
+      const out = {}
+      if (config.values != null) out.values = config.values
+      if (config.weights != null) out.weights = config.weights
+      return out
+    }
     default: {
       // Strip internal editor-only fields and spread the rest
       const { source: _s, data: _d, color: _c, notes: _n, label: _l, ...rest } = config

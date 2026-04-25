@@ -1,7 +1,7 @@
 <template>
   <div class="config-form">
     <!-- 最值 -->
-    <template v-if="localData.nodeType === 'processing-extreme'">
+    <template v-if="activeNodeType === 'processing-extreme'">
       <div class="form-group">
         <label class="form-label">处理方法</label>
         <select v-model="localData.method" class="form-select" @change="emitUpdate">
@@ -14,17 +14,20 @@
       </div>
       <div class="form-group">
         <label class="form-label">数据列表</label>
-        <input
-          v-model="localData.list"
-          type="text"
-          class="form-input"
-          placeholder="连接数据源或输入列表"
-          @input="emitUpdate"
-        />
+        <select v-if="allFields.length" v-model="localData.list" class="form-select" @change="emitUpdate">
+          <option value="">-- 选择字段 --</option>
+          <optgroup v-if="mainFields.length" label="材料清单">
+            <option v-for="f in mainFields" :key="f" :value="f">{{ f }}</option>
+          </optgroup>
+          <optgroup v-if="subFields.length" label="历史价格表">
+            <option v-for="f in subFields" :key="f" :value="f">{{ f }}</option>
+          </optgroup>
+        </select>
+        <span v-else class="loading-hint">加载字段中…</span>
       </div>
     </template>
     <!-- 平均值 -->
-    <template v-else-if="localData.nodeType === 'processing-average'">
+    <template v-else-if="activeNodeType === 'processing-average'">
       <div class="form-group">
         <label class="form-label">计算方法</label>
         <select v-model="localData.method" class="form-select" @change="emitUpdate">
@@ -34,27 +37,33 @@
       </div>
       <div class="form-group">
         <label class="form-label">数值列表</label>
-        <input
-          v-model="localData.values"
-          type="text"
-          class="form-input"
-          placeholder="连接数据源"
-          @input="emitUpdate"
-        />
+        <select v-if="allFields.length" v-model="localData.values" class="form-select" @change="emitUpdate">
+          <option value="">-- 选择字段 --</option>
+          <optgroup v-if="mainFields.length" label="材料清单">
+            <option v-for="f in mainFields" :key="f" :value="f">{{ f }}</option>
+          </optgroup>
+          <optgroup v-if="subFields.length" label="历史价格表">
+            <option v-for="f in subFields" :key="f" :value="f">{{ f }}</option>
+          </optgroup>
+        </select>
+        <span v-else class="loading-hint">加载字段中…</span>
       </div>
       <div v-if="localData.method === 'weighted'" class="form-group">
         <label class="form-label">权重列表</label>
-        <input
-          v-model="localData.weights"
-          type="text"
-          class="form-input"
-          placeholder="输入权重数据"
-          @input="emitUpdate"
-        />
+        <select v-if="allFields.length" v-model="localData.weights" class="form-select" @change="emitUpdate">
+          <option value="">-- 选择字段 --</option>
+          <optgroup v-if="mainFields.length" label="材料清单">
+            <option v-for="f in mainFields" :key="f" :value="f">{{ f }}</option>
+          </optgroup>
+          <optgroup v-if="subFields.length" label="历史价格表">
+            <option v-for="f in subFields" :key="f" :value="f">{{ f }}</option>
+          </optgroup>
+        </select>
+        <span v-else class="loading-hint">加载字段中…</span>
       </div>
     </template>
     <!-- 缺失值处理 -->
-    <template v-else-if="localData.nodeType === 'processing-interpolation'">
+    <template v-else-if="activeNodeType === 'processing-interpolation'">
       <div class="form-group">
         <label class="form-label">插值方法</label>
         <select v-model="localData.method" class="form-select" @change="emitUpdate">
@@ -67,7 +76,7 @@
       </div>
     </template>
     <!-- 价格调整 -->
-    <template v-else-if="localData.nodeType === 'processing-price'">
+    <template v-else-if="activeNodeType === 'processing-price'">
       <div class="form-group">
         <label class="form-label">原始数据列表</label>
         <input
@@ -93,17 +102,41 @@
 </template>
 
 <script setup>
-  import { ref, watch } from 'vue'
-  const props = defineProps({ modelValue: Object })
+  import { ref, watch, computed, onMounted } from 'vue'
+  import { getIfNodeConfig } from '@/services/priceAnalysisService'
+  const props = defineProps({ modelValue: Object, nodeType: String, nodeId: String })
   const emit = defineEmits(['update:modelValue'])
   const localData = ref({ ...props.modelValue })
-  if (!localData.value.method)
+
+  const mainFields = ref([])
+  const subFields = ref([])
+  const allFields = computed(() => [...mainFields.value, ...subFields.value])
+
+  onMounted(async () => {
+    try {
+      const cfg = await getIfNodeConfig(props.nodeId)
+      mainFields.value = (cfg.fields || []).map((f) => f.text)
+      subFields.value = (cfg.childFields || []).map((f) => f.text)
+    } catch (e) {
+      console.error('加载字段失败', e)
+    }
+  })
+
+  // nodeType comes from the parent prop (Editor.vue passes :node-type);
+  // fall back to what may be stored in the config for backward compat.
+  const activeNodeType = computed(
+    () => props.nodeType || localData.value.nodeType || 'processing-extreme'
+  )
+
+  if (!localData.value.method) {
+    const nt = props.nodeType || localData.value.nodeType || ''
     localData.value.method =
-      localData.value.nodeType === 'processing-average'
+      nt === 'processing-average'
         ? 'arithmetic'
-        : localData.value.nodeType === 'processing-interpolation'
+        : nt === 'processing-interpolation'
           ? 'regression'
           : 'max'
+  }
   watch(
     () => props.modelValue,
     (v) => {
@@ -161,5 +194,9 @@
   }
   .info-box p {
     margin: 0;
+  }
+  .loading-hint {
+    font-size: 12px;
+    color: #9ca3af;
   }
 </style>

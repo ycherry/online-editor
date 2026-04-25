@@ -44,6 +44,7 @@
     calculation: { icon: '∑', color: '#8b5cf6', label: '运算' },
     'query-filter': { icon: '▽', color: '#14b8a6', label: '筛选器' },
     'processing-extreme': { icon: '↕', color: '#6366f1', label: '最值' },
+    'processing-average': { icon: '≈', color: '#0ea5e9', label: '均值' },
     comparison: { icon: '⬡', color: '#ef4444', label: '多版本比较' },
     'output-excel': { icon: '📤', color: '#22c55e', label: 'Excel输出' },
   }
